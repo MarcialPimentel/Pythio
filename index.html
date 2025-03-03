@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pythio</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <script src="game.js?version=1.8" onload="console.log('game.js loaded successfully with version 1.8')"></script>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      text-align: center; 
+      background: #f5e8c7; 
+      color: #3c2f2f; 
+      margin: 0; 
+      padding: 20px; 
+    }
+    #status { 
+      font-size: 20px; 
+      margin: 20px; 
+    }
+    button { 
+      padding: 10px 20px; 
+      margin: 5px; 
+      background: #d4a017; 
+      color: #fff; 
+      border: none; 
+      border-radius: 5px; 
+      cursor: pointer; 
+    }
+    button:hover { 
+      background: #e6b800; 
+    }
+    #manaBar, #healthBars, #talents { 
+      max-width: 1200px; 
+      margin: 20px auto; 
+      display: flex; 
+      flex-wrap: wrap; 
+      justify-content: center; 
+    }
+    .mana-bar { 
+      width: 500px; 
+      height: 30px; 
+      background: #ccc; 
+      margin: 10px auto; 
+      border: 1px solid #000; 
+      position: relative; 
+    }
+    .mana-fill { 
+      height: 100%; 
+      background: #1e90ff; 
+      width: 0%; 
+      transition: width 0.5s; 
+    }
+    .mana-text { 
+      position: absolute; 
+      width: 100%; 
+      text-align: center; 
+      font-size: 16px; 
+      line-height: 30px; 
+    }
+    .health-bar { 
+      width: 250px; 
+      height: 50px; 
+      background: #ccc; 
+      margin: 15px; 
+      border: 1px solid #000; 
+      position: relative; 
+      cursor: pointer; 
+    }
+    .health-fill { 
+      height: 100%; 
+      background: #4CAF50; 
+      width: 0%; 
+      transition: width 0.5s; 
+    }
+    .health-text { 
+      position: absolute; 
+      width: 100%; 
+      text-align: center; 
+      font-size: 18px; 
+      line-height: 50px; 
+    }
+    #instructions { 
+      position: fixed; 
+      bottom: 20px; 
+      left: 0; 
+      right: 0; 
+      max-width: 600px; 
+      margin: 0 auto; 
+      font-size: 16px; 
+    }
+    .spell-available { color: #3c2f2f; }
+    .spell-unavailable { color: #ff0000; }
+    #startScreen { 
+      position: absolute; 
+      top: 0; 
+      left: 0; 
+      width: 100%; 
+      height: 100%; 
+      background: #f5e8c7; 
+      display: flex; 
+      flex-direction: column; 
+      justify-content: center; 
+      align-items: center; 
+    }
+    #gameContent { display: none; }
+    #leaderboard { 
+      margin: 20px; 
+      max-width: 600px; 
+      text-align: left; 
+    }
+    #leaderboard h3 { 
+      margin-bottom: 10px; 
+    }
+    #leaderboard ul { 
+      list-style: none; 
+      padding: 0; 
+    }
+    #leaderboard li { 
+      margin: 5px 0; 
+    }
+  </style>
+</head>
+<body>
+  <div id="startScreen">
+    <h1>Pythio</h1>
+    <p>Heal adventurers through 5 rounds of combat!</p>
+    <button onclick="startGame()">Start Game</button>
+    <div id="leaderboard">
+      <h3>Leaderboard (Highest Round)</h3>
+      <ul id="leaderboardList"></ul>
+    </div>
+  </div>
+  <div id="gameContent">
+    <h1>Pythio</h1>
+    <div id="status">Round 1 - Time: 30s</div>
+    <div id="manaBar">
+      <div class="mana-bar">
+        <div class="mana-fill" id="manaFill" style="width: 100%;"></div>
+        <div class="mana-text" id="manaText">100/100</div>
+      </div>
+    </div>
+    <div id="healthBars">
+      <div class="health-bar" onmousedown="castSpell(event, 0)" oncontextmenu="return false;">
+        <div class="health-fill" id="healthFill0" style="width: 75%;"></div>
+        <div class="health-text" id="healthText0">75/100</div>
+      </div>
+    </div>
+    <div id="talents"></div>
+    <div id="instructions">
+      <p>Left-click: Lesser Heal (20 HP, 10 Mana)</p>
+    </div>
+  </div>
+</body>
+</html>
