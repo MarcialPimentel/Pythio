@@ -2,6 +2,7 @@
 let round = 1;
 let mana = 100;
 let maxMana = 100;
+let manaRegen = 2; // Mana per second
 let roundTime = 30;
 let lastUpdate = Date.now();
 let inRound = true;
@@ -19,6 +20,8 @@ let spells = {
   renew: false
 };
 let updateInterval = null;
+let modifierMessage = ""; // For procedural modifiers
+let modifierMessageTimer = 0;
 
 // Leaderboard functions (server-side)
 async function loadLeaderboard() {
@@ -72,12 +75,15 @@ function resetGame() {
   round = 1;
   mana = 100;
   maxMana = 100;
+  manaRegen = 2;
   roundTime = 30;
   lastUpdate = Date.now();
   inRound = true;
   gameStarted = false;
   spellSelected = false;
   gameEnded = false;
+  modifierMessage = "";
+  modifierMessageTimer = 0;
   targets = [
     { health: 75, maxHealth: 100, damageRate: 2, renewTime: 0 }
   ];
@@ -148,38 +154,102 @@ function proceedToNextRound() {
   console.log("Proceeding to next round...");
   spellSelected = false;
   inRound = true;
+  modifierMessage = "";
+  modifierMessageTimer = 0;
   nextRound();
 }
 
 function nextRound() {
   console.log("Starting Round", round + 1);
   round++;
-  mana = Math.min(maxMana, mana + maxMana * 0.5);
-  roundTime = 30;
-  if (round === 2) {
-    targets = [
-      { health: 60, maxHealth: 100, damageRate: 2, renewTime: 0 },
-      { health: 60, maxHealth: 100, damageRate: 2, renewTime: 0 }
-    ];
-  } else if (round === 3) {
-    targets = [
-      { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 },
-      { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 },
-      { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 }
-    ];
-  } else if (round === 4) {
-    targets = [
-      { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
-      { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
-      { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
-      { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 }
-    ];
-  } else if (round === 5) {
-    targets = [
-      { health: 30, maxHealth: 100, damageRate: 4, renewTime: 0 },
-      { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 },
-      { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 }
-    ];
+  
+  if (round <= 5) {
+    // Predefined rounds (1-5)
+    if (round === 2) {
+      targets = [
+        { health: 60, maxHealth: 100, damageRate: 2, renewTime: 0 },
+        { health: 60, maxHealth: 100, damageRate: 2, renewTime: 0 }
+      ];
+    } else if (round === 3) {
+      targets = [
+        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 },
+        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 },
+        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 }
+      ];
+    } else if (round === 4) {
+      targets = [
+        { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
+        { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
+        { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
+        { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 }
+      ];
+    } else if (round === 5) {
+      targets = [
+        { health: 30, maxHealth: 100, damageRate: 4, renewTime: 0 },
+        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 },
+        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 }
+      ];
+    }
+  } else {
+    // Procedural rounds (6 and beyond)
+    const roundsPastFive = round - 5;
+    // Number of targets: 3 at Round 5, +1 every 5 rounds, random variance ±1, max 7
+    const baseNumTargets = 3 + Math.floor(roundsPastFive / 5);
+    const variance = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
+    const numTargets = Math.min(7, Math.max(3, baseNumTargets + variance));
+    // Damage rate scaling: +8% per round past 5
+    const tankDamageRate = 4 * Math.pow(1.08, roundsPastFive);
+    const dpsDamageRate = 2 * Math.pow(1.08, roundsPastFive);
+    const healerDamageRate = 1 * Math.pow(1.08, roundsPastFive);
+    // Starting health: -3% per round past 5, min 30
+    const startingHealth = Math.max(30, 100 * Math.pow(0.97, roundsPastFive));
+    // Max mana: +10 every 3 rounds
+    maxMana = 100 + 10 * Math.floor((round - 1) / 3);
+    // Mana regen: +0.2 every 5 rounds
+    manaRegen = 2 + 0.2 * Math.floor((round - 1) / 5);
+    mana = Math.min(maxMana, mana + maxMana * 0.5);
+
+    // Random modifier (30% chance)
+    let modifier = "";
+    if (Math.random() < 0.3) {
+      const modifiers = [
+        { type: "highDamage", message: "High Damage Round!" },
+        { type: "lowMana", message: "Low Mana Round!" },
+        { type: "criticalCondition", message: "Critical Condition Round!" }
+      ];
+      const selectedModifier = modifiers[Math.floor(Math.random() * modifiers.length)];
+      modifier = selectedModifier.type;
+      modifierMessage = selectedModifier.message;
+      modifierMessageTimer = 5; // Display for 5 seconds
+    }
+
+    targets = [];
+    for (let i = 0; i < numTargets; i++) {
+      let damageRate = i === 0 ? tankDamageRate : dpsDamageRate;
+      if (round >= 10 && i === numTargets - 1) {
+        // Last target is a Healer/Support starting from Round 10
+        damageRate = healerDamageRate;
+      }
+      let health = startingHealth;
+      if (modifier === "criticalCondition" && i === Math.floor(Math.random() * numTargets)) {
+        health = 10; // One random target starts at 10 HP
+      }
+      targets.push({
+        health: health,
+        maxHealth: 100,
+        damageRate: damageRate,
+        renewTime: 0
+      });
+    }
+
+    // Apply modifier effects
+    if (modifier === "highDamage") {
+      targets.forEach(target => {
+        target.damageRate *= 1.2; // +20% damage rate
+      });
+    } else if (modifier === "lowMana") {
+      manaRegen -= 0.5; // -0.5 mana/sec
+    }
   }
   updateDisplay();
 }
@@ -202,7 +272,7 @@ function endGame(result) {
     }
   }
   document.getElementById("talents").innerHTML = `
-    <p>${result === "victory" ? "Victory! You’ve healed through the final battle!" : "Defeat! An adventurer has fallen."}</p>
+    <p>${result === "victory" ? "Victory! You’ve healed through Round ${round}!" : "Defeat! An adventurer has fallen on Round ${round}."}</p>
     <button onclick="resetGame()">Play Again</button>
   `;
 }
@@ -221,6 +291,13 @@ function updateDisplay() {
     manaText.innerHTML = `${Math.floor(mana)}/${maxMana}`;
   } else {
     console.warn("Mana bar elements not found, skipping update.");
+  }
+
+  const eventMessageDiv = document.getElementById("eventMessage");
+  if (eventMessageDiv) {
+    eventMessageDiv.innerHTML = modifierMessage;
+  } else {
+    console.warn("Event message element not found, skipping update.");
   }
 
   let healthBarsHTML = "";
@@ -267,12 +344,14 @@ function updateDisplay() {
           `;
         }
       } else {
-        endGame("victory");
+        talents.innerHTML = `
+          <p>Round ${round} Complete! Continue to the next challenge?</p>
+          <button onclick="proceedToNextRound()">Next Round</button>
+        `;
       }
     } else if (targets.some(t => t.health <= 0) && !gameEnded) {
       endGame("defeat");
     } else if (inRound) {
-      // Clear the talents section during the round
       talents.innerHTML = "";
     }
   } else {
@@ -301,18 +380,33 @@ function updateProgress() {
   let now = Date.now();
   let timePassed = (now - lastUpdate) / 1000;
   if (inRound) {
-    mana = Math.min(maxMana, mana + 2 * timePassed);
+    mana = Math.min(maxMana, mana + manaRegen * timePassed);
     roundTime -= timePassed;
-    targets.forEach(target => {
-      console.log(`Target health before: ${target.health}, damageRate: ${target.damageRate}, timePassed: ${timePassed}`);
+    targets.forEach((target, i) => {
+      console.log(`Target ${i} health before: ${target.health}, damageRate: ${target.damageRate}, timePassed: ${timePassed}`);
       target.health = Math.max(0, target.health - target.damageRate * timePassed);
-      console.log(`Target health after: ${target.health}`);
+      console.log(`Target ${i} health after: ${target.health}`);
       if (target.renewTime > 0) {
-        console.log("Applying Renew heal...");
+        console.log(`Applying Renew heal to target ${i}...`);
         target.health = Math.min(target.maxHealth, target.health + 5 * timePassed);
         target.renewTime -= timePassed;
       }
+      // Healer/Support aura (index numTargets - 1 starting from Round 10)
+      if (round >= 10 && i === targets.length - 1) {
+        for (let j = 0; j < targets.length - 1; j++) {
+          targets[j].health = Math.min(targets[j].maxHealth, targets[j].health + 1 * timePassed);
+        }
+      }
     });
+
+    // Update modifier message timer
+    if (modifierMessageTimer > 0) {
+      modifierMessageTimer -= timePassed;
+      if (modifierMessageTimer <= 0) {
+        modifierMessage = "";
+        modifierMessageTimer = 0;
+      }
+    }
   }
   lastUpdate = now;
   updateDisplay();
