@@ -3,7 +3,7 @@ let round = 1;
 let mana = 100;
 let maxMana = 100;
 let manaRegen = 3; // 3 mana/second for early rounds
-let roundTime = 20; // Start at 20 seconds
+let roundTime = 10; // Start at 10 seconds
 let lastUpdate = Date.now();
 let inRound = true;
 let gameStarted = false;
@@ -28,6 +28,36 @@ let updateInterval = null;
 let modifierMessage = "";
 let modifierMessageTimer = 0;
 let lastGlobalLog = Date.now();
+
+// 🔹 Global Modifiers Object to Ensure It Exists
+const modifiers = {
+  highDamage: {
+    message: "High Damage Round!",
+    applyEffect: function(targets) {
+      console.log("Applying High Damage Modifier: Targets take 20% more damage.");
+      targets.forEach(target => target.damageRate *= 1.2);
+    }
+  },
+  extraTank: {
+    message: "Extra Tank Round!",
+    applyEffect: function(targets) {
+      console.log("Applying Extra Tank Modifier: Adding a tank.");
+      targets.push({ health: 100, maxHealth: 100, damageRate: 3, renewTime: 0 });
+    }
+  },
+  criticalCondition: {
+    message: "Critical Condition Round!",
+    applyEffect: function(targets) {
+      console.log("Applying Critical Condition Modifier: One target starts at 10 HP.");
+      let targetIndex = Math.floor(Math.random() * targets.length);
+      if (targets[targetIndex]) {
+        targets[targetIndex].health = 10;
+      }
+    }
+  }
+};
+
+
 
 // Debounce function to limit updateDisplay calls
 function debounce(func, wait) {
@@ -89,7 +119,7 @@ function resetGame() {
   mana = 100;
   maxMana = 100;
   manaRegen = 3;
-  roundTime = 20;
+  roundTime = 10;
   lastUpdate = Date.now();
   inRound = true;
   gameStarted = false;
@@ -125,7 +155,7 @@ function startGame() {
   console.log("Starting game...");
   gameStarted = true;
   gameEnded = false;
-  roundTime = 20; // Fresh timer for Round 1
+  roundTime = 10; // Fresh timer for Round 1
   lastUpdate = Date.now();
   lastGlobalLog = Date.now();
   document.getElementById("startScreen").style.display = "none";
@@ -308,20 +338,27 @@ function nextRound() {
     maxMana = 100 + 10 * Math.floor((round - 1) / 3);
     mana = Math.min(maxMana, mana + maxMana * 0.5);
 
-    // **Apply Modifiers Randomly**
-    let appliedModifier = false;
-    if (Math.random() < 0.5) {
-      const availableModifiers = Object.keys(modifiers);
-      const selectedKey = availableModifiers[Math.floor(Math.random() * availableModifiers.length)];
-      const selectedModifier = modifiers[selectedKey];
+// **Apply Modifiers Randomly** (Only if modifiers exist)
+let appliedModifier = false;
+if (typeof modifiers !== "undefined" && Object.keys(modifiers).length > 0) {
+  if (Math.random() < 0.5) {
+    const availableModifiers = Object.keys(modifiers);
+    const selectedKey = availableModifiers[Math.floor(Math.random() * availableModifiers.length)];
+    const selectedModifier = modifiers[selectedKey];
 
-      if (selectedModifier) {
-        modifierMessage = selectedModifier.message;
-        modifierMessageTimer = 5;
-        selectedModifier.applyEffect(targets);
-        appliedModifier = true;
-      }
+    if (selectedModifier && typeof selectedModifier.applyEffect === "function") {
+      console.log(`Applying Modifier: ${selectedModifier.message}`);
+      modifierMessage = selectedModifier.message;
+      modifierMessageTimer = 5;
+      selectedModifier.applyEffect(targets);
+      appliedModifier = true;
+    } else {
+      console.warn("Selected modifier is undefined or missing an applyEffect function.");
     }
+  }
+} else {
+  console.warn("No modifiers available or modifiers object is undefined.");
+}
 
     // **Generate Targets**
     let addedExtraTank = false;
