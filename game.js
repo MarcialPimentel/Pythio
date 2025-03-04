@@ -2,7 +2,7 @@
 let round = 1;
 let mana = 100;
 let maxMana = 100;
-let manaRegen = 2; // Mana per second
+let manaRegen = 3; // 3 mana/second for early rounds
 let roundTime = 20; // Start at 20 seconds
 let lastUpdate = Date.now();
 let inRound = true;
@@ -27,21 +27,15 @@ let spells = {
 let updateInterval = null;
 let modifierMessage = "";
 let modifierMessageTimer = 0;
+let lastGlobalLog = Date.now();
 
-// ✅ Reduce Console Logging Frequency
-function globalLogSummary() {
-  console.log(`GLOBAL STATUS UPDATE: 
-  - Round: ${round} | Time: ${Math.ceil(roundTime)}s | Mana: ${Math.floor(mana)}/${maxMana}
-  - Targets: ${targets.length}, Casting: ${casting ? castSpellType : "None"}`);
-
-  lastGlobalLog = Date.now();
-}
-
-// ✅ Ensure Log Summary Runs Every 5 Seconds
-function checkGlobalLog() {
-  if (Date.now() - lastGlobalLog >= 5000) {
-    globalLogSummary();
-  }
+// Debounce function to limit updateDisplay calls
+function debounce(func, wait) {
+  let timeout;
+  return function (...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
+  };
 }
 
 // Leaderboard functions
@@ -78,16 +72,14 @@ async function saveLeaderboard() {
 }
 
 function displayLeaderboard() {
-  console.log("Displaying leaderboard...");
   const list = document.getElementById("leaderboardList");
   if (!list) {
-    console.error("Leaderboard list element not found! Retrying after DOM load...");
+    console.error("Leaderboard list element not found!");
     return;
   }
   list.innerHTML = leaderboard.length > 0 
     ? leaderboard.map(entry => `<li>${entry.name}: Round ${entry.round}</li>`).join("")
     : "<li>No scores yet!</li>";
-  console.log("Leaderboard displayed successfully.");
 }
 
 // Reset game state
@@ -96,7 +88,7 @@ function resetGame() {
   round = 1;
   mana = 100;
   maxMana = 100;
-  manaRegen = 2;
+  manaRegen = 3;
   roundTime = 20;
   lastUpdate = Date.now();
   inRound = true;
@@ -110,6 +102,7 @@ function resetGame() {
   castSpellType = "";
   modifierMessage = "";
   modifierMessageTimer = 0;
+  lastGlobalLog = Date.now();
   targets = [
     { health: 75, maxHealth: 100, damageRate: 2, renewTime: 0 }
   ];
@@ -122,73 +115,59 @@ function resetGame() {
   document.getElementById("startScreen").style.display = "flex";
   document.getElementById("gameContent").style.display = "none";
   document.getElementById("castBar").style.display = "none";
+  if (updateInterval) clearInterval(updateInterval);
+  updateInterval = null;
   loadLeaderboard();
-  console.log("Game reset complete. Waiting for Start Game click.");
+  updateDisplay();
 }
 
 function startGame() {
   console.log("Starting game...");
   gameStarted = true;
   gameEnded = false;
-  roundTime = 20;
+  roundTime = 20; // Fresh timer for Round 1
   lastUpdate = Date.now();
+  lastGlobalLog = Date.now();
   document.getElementById("startScreen").style.display = "none";
   document.getElementById("gameContent").style.display = "block";
   if (!updateInterval) {
     updateInterval = setInterval(updateProgress, 100);
-    console.log("Update interval started:", updateInterval);
   }
   updateDisplay();
 }
 
-// ✅ Ensure Clicks Register Between Rounds
-function startGame() {
-  console.log("Game Started.");
-  gameStarted = true;
-  gameEnded = false;
-  roundTime = 20;
-  lastUpdate = Date.now();
-  document.getElementById("startScreen").style.display = "none";
-  document.getElementById("gameContent").style.display = "block";
-
-  // ✅ Adjust Update Interval to Allow Button Clicks
-  if (!updateInterval) {
-    updateInterval = setInterval(updateProgress, inRound ? 100 : 200);
-  }
-}
-
-
 function castSpell(event, targetIndex) {
   if (!gameStarted || gameEnded) {
-    console.log("Cannot cast spell: gameStarted=", gameStarted, "gameEnded=", gameEnded);
+    console.log("Cannot cast: game not active");
     return;
   }
   if (casting) {
-    console.log("Cannot cast: another spell is already being cast.");
+    console.log("Cannot cast: already casting");
     return;
   }
-  console.log("Initiating spell cast on target", targetIndex);
   event.preventDefault();
   let target = targets[targetIndex];
 
   let spellType = "";
   if (event.button === 0) { // Left click
     if (event.shiftKey && spells.renew.enabled) {
-      console.log("Renew cast attempted with Shift + Left Click");
       spellType = "renew";
+      console.log(`Casting ${spellType} on target ${targetIndex}`);
     } else {
       spellType = spells.heal.enabled ? "heal" : "lesserHeal";
+      console.log(`Casting ${spellType} on target ${targetIndex}`);
     }
   } else if (event.button === 2 && spells.flashHeal.enabled) { // Right click
     spellType = "flashHeal";
+    console.log(`Casting ${spellType} on target ${targetIndex}`);
   } else {
-    console.log("Spell cast failed: invalid button or spell not enabled.");
+    console.log("Spell cast failed: invalid input or spell not enabled");
     return;
   }
 
   const spell = spells[spellType];
   if (mana < spell.manaCost) {
-    console.log("Spell cast failed: not enough mana.");
+    console.log("Spell cast failed: not enough mana");
     return;
   }
   if (target.health >= target.maxHealth && spellType !== "renew") {
@@ -196,16 +175,14 @@ function castSpell(event, targetIndex) {
     return;
   }
 
-  // Apply spell effect immediately
   mana -= spell.manaCost;
   if (spellType === "renew") {
     target.renewTime = spell.duration;
     console.log(`Renew applied to target ${targetIndex} for ${spell.duration}s`);
   } else if (spell.castTime === 0) {
     target.health = Math.min(target.maxHealth, target.health + spell.healAmount);
-    console.log(`${spellType} instantly healed target ${targetIndex} for ${spell.healAmount}`);
+    console.log(`${spellType} healed target ${targetIndex} for ${spell.healAmount}`);
   } else {
-    // Spells with cast time
     castTargetIndex = targetIndex;
     castSpellType = spellType;
     castDuration = spell.castTime;
@@ -223,7 +200,7 @@ function completeCast() {
   const target = targets[castTargetIndex];
   const spell = spells[castSpellType];
   
-  console.log(`Completing cast of ${castSpellType} on target ${castTargetIndex}`);
+  console.log(`Completed cast of ${castSpellType} on target ${castTargetIndex}`);
   target.health = Math.min(target.maxHealth, target.health + spell.healAmount);
   
   casting = false;
@@ -236,7 +213,7 @@ function completeCast() {
 }
 
 function unlockSpell(spell) {
-  console.log("Unlocking spell:", spell);
+  console.log(`Unlocking spell: ${spell}`);
   if (spell === "heal") {
     spells.lesserHeal.enabled = false;
     spells.heal.enabled = true;
@@ -244,7 +221,7 @@ function unlockSpell(spell) {
     spells[spell].enabled = true;
   }
   spellSelected = true;
-  updateDisplay();
+  debouncedUpdateDisplay();
 }
 
 function proceedToNextRound() {
@@ -258,53 +235,64 @@ function proceedToNextRound() {
   castDuration = 0;
   castTargetIndex = -1;
   castSpellType = "";
+  lastUpdate = Date.now(); // Reset timing for fresh start
+  if (!updateInterval) {
+    updateInterval = setInterval(updateProgress, 100);
+  }
   nextRound();
 }
 
 function nextRound() {
-  console.log("Starting Round", round + 1);
+  console.log(`Starting Round ${round + 1}`);
   round++;
-  
-  roundTime = Math.min(30, 20 + Math.floor((round - 1) / 3));
-  console.log("Round time set to:", roundTime, "seconds");
 
-  if (round <= 5) {
-    console.log("Using predefined round", round);
-    if (round === 2) {
-      targets = [
-        { health: 60, maxHealth: 100, damageRate: 2, renewTime: 0 },
-        { health: 60, maxHealth: 100, damageRate: 2, renewTime: 0 }
-      ];
-    } else if (round === 3) {
-      targets = [
-        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 },
-        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 },
-        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 }
-      ];
-    } else if (round === 4) {
-      targets = [
-        { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
-        { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
-        { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
-        { health: 40, maxHealth: 100, damageRate: 2.5, renewTime: 0 }
-      ];
-    } else if (round === 5) {
-      targets = [
-        { health: 30, maxHealth: 100, damageRate: 4, renewTime: 0 },
-        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 },
-        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 }
-      ];
-    }
-  } else {
-    console.log("Generating procedural round", round);
+  // Scale round time dynamically for pacing
+  roundTime = Math.min(30, 20 + Math.floor((round - 1) / 3));
+
+  // Set base values for health, damage, and number of targets
+  let baseHealth = 100;
+  let baseDamageRate = 2;
+  let numTargets = 1;
+
+  // 🔹 **Round 1-3: Tutorial Phase**
+  if (round === 1) {
+    numTargets = 1;
+    baseHealth = 75;
+    baseDamageRate = 1;
+    manaRegen = 4;  // High mana regen to teach spell usage
+  } else if (round === 2) {
+    numTargets = 2;
+    baseHealth = 80;
+    baseDamageRate = 1.5;
+    manaRegen = 3.5;
+  } else if (round === 3) {
+    numTargets = 2;
+    baseHealth = 90;
+    baseDamageRate = 2;
+    manaRegen = 3;
+  }
+  // 🔹 **Round 4-5: Transition Phase**
+  else if (round === 4) {
+    numTargets = 3;
+    baseHealth = 95;
+    baseDamageRate = 2.5;
+    manaRegen = 2.8;
+  } else if (round === 5) {
+    numTargets = 4;
+    baseHealth = 100;
+    baseDamageRate = 3;
+    manaRegen = 2.5;
+  }
+  // 🔹 **Round 6+: Procedural Scaling**
+  else {
     const roundsPastFive = round - 5;
-    const baseNumTargets = 3 + Math.floor(roundsPastFive / (round <= 9 ? 3 : 5));
-    const variance = round <= 9 ? Math.floor(Math.random() * 5) - 2 : Math.floor(Math.random() * 3) - 1;
-    const numTargets = Math.min(7, Math.max(3, baseNumTargets + variance));
+    numTargets = Math.min(7, 3 + Math.floor(roundsPastFive / (round <= 9 ? 3 : 5)));
+    
     const tankDamageRate = 4 * Math.pow(1.08, roundsPastFive);
     const dpsDamageRate = 2 * Math.pow(1.08, roundsPastFive);
     const healerDamageRate = 1 * Math.pow(1.08, roundsPastFive);
-    const baseHealth = Math.max(30, 100 * Math.pow(0.97, roundsPastFive));
+    baseHealth = Math.max(30, 100 * Math.pow(0.97, roundsPastFive));
+
     maxMana = 100 + 10 * Math.floor((round - 1) / 3);
     manaRegen = 2 + 0.2 * Math.floor((round - 1) / 5);
     mana = Math.min(maxMana, mana + maxMana * 0.5);
@@ -357,22 +345,31 @@ function nextRound() {
     }
 
     if (modifier === "highDamage") {
-      targets.forEach(target => {
-        target.damageRate *= 1.2;
-      });
+      targets.forEach(target => target.damageRate *= 1.2);
     } else if (modifier === "lowMana") {
       manaRegen -= 0.5;
     }
   }
+
+  // Ensure early rounds still feel meaningful
+  if (round < 6) {
+    targets = Array.from({ length: numTargets }, () => ({
+      health: baseHealth,
+      maxHealth: 100,
+      damageRate: baseDamageRate,
+      renewTime: 0
+    }));
+  }
+
   updateDisplay();
 }
 
+
 function endGame(result) {
-  console.log("Ending game:", result);
+  console.log(`Game ended: ${result}, reached Round ${round}`);
   gameEnded = true;
   if (updateInterval) {
     clearInterval(updateInterval);
-    console.log("Update interval cleared:", updateInterval);
     updateInterval = null;
   }
   let playerName = prompt(`Game Over! You reached Round ${round}! Enter your name for the leaderboard:`);
@@ -388,7 +385,11 @@ function endGame(result) {
     <p>Game Over! You reached Round ${round}.</p>
     <button onclick="resetGame()">Play Again</button>
   `;
+  updateDisplay();
 }
+
+// Debounced version of updateDisplay
+const debouncedUpdateDisplay = debounce(updateDisplay, 50);
 
 function updateDisplay() {
   if (!gameStarted) return;
@@ -401,8 +402,6 @@ function updateDisplay() {
   if (manaFill && manaText) {
     manaFill.style.width = `${(mana / maxMana) * 100}%`;
     manaText.innerHTML = `${Math.floor(mana)}/${maxMana}`;
-  } else {
-    console.warn("Mana bar elements not found, skipping update.");
   }
 
   const castBar = document.getElementById("castBar");
@@ -418,16 +417,10 @@ function updateDisplay() {
     } else {
       castBar.style.display = "none";
     }
-  } else {
-    console.warn("Cast bar elements not found, skipping update.");
   }
 
   const eventMessageDiv = document.getElementById("eventMessage");
-  if (eventMessageDiv) {
-    eventMessageDiv.innerHTML = modifierMessage;
-  } else {
-    console.warn("Event message element not found, skipping update.");
-  }
+  if (eventMessageDiv) eventMessageDiv.innerHTML = modifierMessage;
 
   let healthBarsHTML = "";
   if (inRound) {
@@ -441,11 +434,7 @@ function updateDisplay() {
     });
   }
   const healthBars = document.getElementById("healthBars");
-  if (healthBars) {
-    healthBars.innerHTML = healthBarsHTML;
-  } else {
-    console.warn("Health bars element not found, skipping update.");
-  }
+  if (healthBars) healthBars.innerHTML = healthBarsHTML;
 
   if (inRound && roundTime <= 0) {
     casting = false;
@@ -454,7 +443,10 @@ function updateDisplay() {
     castTargetIndex = -1;
     castSpellType = "";
     inRound = false;
-    updateDisplay();
+    if (updateInterval) {
+      clearInterval(updateInterval);
+      updateInterval = null;
+    }
   }
 
   const talents = document.getElementById("talents");
@@ -481,8 +473,6 @@ function updateDisplay() {
     } else if (inRound) {
       talents.innerHTML = "";
     }
-  } else {
-    console.warn("Talents element not found, skipping update.");
   }
 
   const instructions = document.getElementById("instructions");
@@ -493,62 +483,59 @@ function updateDisplay() {
       ${spells.renew.enabled ? `<p ${mana >= spells.renew.manaCost ? 'class="spell-available"' : 'class="spell-unavailable"'}>Shift + Left-click: Renew (50 HP over 10s, 25 Mana, Instant)</p>` : ''}
     `;
     instructions.innerHTML = instructionsHTML;
-  } else {
-    console.warn("Instructions element not found, skipping update.");
   }
 }
 
 function updateProgress() {
-  if (!gameStarted || gameEnded) {
-    console.log("Update progress skipped: gameStarted=", gameStarted, "gameEnded=", gameEnded);
-    return;
-  }
+  if (!gameStarted || gameEnded || !inRound) return;
+
   let now = Date.now();
   let timePassed = (now - lastUpdate) / 1000;
-  if (inRound) {
-    mana = Math.min(maxMana, mana + manaRegen * timePassed);
-    roundTime -= timePassed;
-    targets.forEach((target, i) => {
-      target.health = Math.max(0, target.health - target.damageRate * timePassed);
-      
-      if (target.renewTime > 0) {
-        const healPerTick = spells.renew.healAmount / spells.renew.duration;
-        target.health = Math.min(
-          target.maxHealth, 
-          target.health + healPerTick * timePassed
-        );
-        target.renewTime = Math.max(0, target.renewTime - timePassed);
-        console.log(`Renew tick on target ${i}: +${(healPerTick * timePassed).toFixed(1)} HP, remaining time: ${target.renewTime}s`);
-      }
-      
-      if (round >= 10 && i === targets.length - 1) {
-        for (let j = 0; j < targets.length - 1; j++) {
-          targets[j].health = Math.min(targets[j].maxHealth, targets[j].health + 1 * timePassed);
-        }
-      }
-    });
-
-    if (targets.some(t => t.health <= 0) && !gameEnded) {
-      console.log("Target health reached 0, ending game...");
-      endGame("defeat");
-      return;
+  
+  mana = Math.min(maxMana, mana + manaRegen * timePassed);
+  roundTime -= timePassed;
+  targets.forEach((target, i) => {
+    target.health = Math.max(0, target.health - target.damageRate * timePassed);
+    
+    if (target.renewTime > 0) {
+      const healPerTick = spells.renew.healAmount / spells.renew.duration;
+      target.health = Math.min(target.maxHealth, target.health + healPerTick * timePassed);
+      target.renewTime = Math.max(0, target.renewTime - timePassed);
     }
-
-    if (casting) {
-      castProgress += timePassed;
-      if (castProgress >= castDuration) {
-        completeCast();
+    
+    if (round >= 10 && i === targets.length - 1) {
+      for (let j = 0; j < targets.length - 1; j++) {
+        targets[j].health = Math.min(targets[j].maxHealth, targets[j].health + 1 * timePassed);
       }
     }
+  });
 
-    if (modifierMessageTimer > 0) {
-      modifierMessageTimer -= timePassed;
-      if (modifierMessageTimer <= 0) {
-        modifierMessage = "";
-        modifierMessageTimer = 0;
-      }
+  if (targets.some(t => t.health <= 0) && !gameEnded) {
+    console.log("Target health reached 0, ending game...");
+    endGame("defeat");
+    return;
+  }
+
+  if (casting) {
+    castProgress += timePassed;
+    if (castProgress >= castDuration) {
+      completeCast();
     }
   }
+
+  if (modifierMessageTimer > 0) {
+    modifierMessageTimer -= timePassed;
+    if (modifierMessageTimer <= 0) {
+      modifierMessage = "";
+      modifierMessageTimer = 0;
+    }
+  }
+
+  if (now - lastGlobalLog >= 5000) {
+    console.log(`Game Status: Round ${round}, Time: ${Math.ceil(roundTime)}s, Mana: ${Math.floor(mana)}/${maxMana}, Regen: ${manaRegen.toFixed(1)}/s, Targets: ${targets.map(t => Math.floor(t.health)).join(", ")}`);
+    lastGlobalLog = now;
+  }
+
   lastUpdate = now;
   updateDisplay();
 }
@@ -559,4 +546,6 @@ document.addEventListener("DOMContentLoaded", function() {
   resetGame();
 });
 
-window.onfocus = updateProgress;
+window.onfocus = function() {
+  if (inRound && gameStarted && !gameEnded) updateProgress();
+};
