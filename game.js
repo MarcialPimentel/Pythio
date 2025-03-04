@@ -246,96 +246,111 @@ function nextRound() {
   console.log(`Starting Round ${round + 1}`);
   round++;
 
-  // Scale round time dynamically for pacing
+  // 🔹 **Set Round Time Scaling**
   roundTime = Math.min(30, 20 + Math.floor((round - 1) / 3));
+  console.log(`Round ${round} timer set to ${roundTime} seconds`);
 
-  // Set base values for health, damage, and number of targets
-  let baseHealth = 100;
-  let baseDamageRate = 2;
-  let numTargets = 1;
+  // 🔹 **Ensure Mana Scaling Starts at Round 6+**
+  if (round <= 5) {
+    manaRegen = 3; // Keep static early
+  } else {
+    if (round % 5 === 0) {
+      maxMana += 10;
+      manaRegen += 0.2;
+      console.log(`Scaling Applied: Max Mana increased to ${maxMana}, Mana Regen increased to ${manaRegen.toFixed(1)}`);
+    }
+  }
 
-  // 🔹 **Round 1-3: Tutorial Phase**
+  // 🔹 **Set Up Fixed Rounds (1-5)**
+  targets = [];
   if (round === 1) {
-    numTargets = 1;
-    baseHealth = 75;
-    baseDamageRate = 1;
-    manaRegen = 4;  // High mana regen to teach spell usage
+    // ✅ **Ensure Round 1 Can Be Lost If No Action Taken**
+    targets = [{ health: 60, maxHealth: 100, damageRate: 4, renewTime: 0 }];
+    roundTime = 10; // **Short round for urgency**
   } else if (round === 2) {
-    numTargets = 2;
-    baseHealth = 80;
-    baseDamageRate = 1.5;
-    manaRegen = 3.5;
+    targets = [
+      { health: 80, maxHealth: 100, damageRate: 2, renewTime: 0 },
+      { health: 80, maxHealth: 100, damageRate: 2, renewTime: 0 }
+    ];
   } else if (round === 3) {
-    numTargets = 2;
-    baseHealth = 90;
-    baseDamageRate = 2;
-    manaRegen = 3;
-  }
-  // 🔹 **Round 4-5: Transition Phase**
-  else if (round === 4) {
-    numTargets = 3;
-    baseHealth = 95;
-    baseDamageRate = 2.5;
-    manaRegen = 2.8;
+    targets = [
+      { health: 90, maxHealth: 100, damageRate: 2, renewTime: 0 },
+      { health: 90, maxHealth: 100, damageRate: 2, renewTime: 0 },
+      { health: 90, maxHealth: 100, damageRate: 3, renewTime: 0 } // Tank with higher damage
+    ];
+  } else if (round === 4) {
+    targets = [
+      { health: 95, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
+      { health: 95, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
+      { health: 95, maxHealth: 100, damageRate: 2.5, renewTime: 0 },
+      { health: 95, maxHealth: 100, damageRate: 2.5, renewTime: 0 }
+    ];
   } else if (round === 5) {
-    numTargets = 4;
-    baseHealth = 100;
-    baseDamageRate = 3;
-    manaRegen = 2.5;
+    targets = [
+      { health: 30, maxHealth: 100, damageRate: 4, renewTime: 0 }, // Tank
+      { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 },
+      { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0 }
+    ];
   }
-  // 🔹 **Round 6+: Procedural Scaling**
+  // 🔹 **Procedural Scaling Begins at Round 6+**
   else {
     const roundsPastFive = round - 5;
-    numTargets = Math.min(7, 3 + Math.floor(roundsPastFive / (round <= 9 ? 3 : 5)));
-    
+    const baseNumTargets = 3 + Math.floor(roundsPastFive / (round <= 9 ? 3 : 5));
+    const variance = round <= 9 ? Math.floor(Math.random() * 5) - 2 : Math.floor(Math.random() * 3) - 1;
+    const numTargets = Math.min(7, Math.max(3, baseNumTargets + variance));
+
+    // **Scaling Health & Damage**
     const tankDamageRate = 4 * Math.pow(1.08, roundsPastFive);
     const dpsDamageRate = 2 * Math.pow(1.08, roundsPastFive);
     const healerDamageRate = 1 * Math.pow(1.08, roundsPastFive);
-    baseHealth = Math.max(30, 100 * Math.pow(0.97, roundsPastFive));
+    const baseHealth = Math.max(30, 100 * Math.pow(0.97, roundsPastFive));
 
     maxMana = 100 + 10 * Math.floor((round - 1) / 3);
-    manaRegen = 2 + 0.2 * Math.floor((round - 1) / 5);
     mana = Math.min(maxMana, mana + maxMana * 0.5);
 
-    let modifier = "";
-    const modifierChance = round <= 9 ? 0.5 : 0.3;
-    if (Math.random() < modifierChance) {
-      const modifiers = round <= 9
-        ? [
-            { type: "highDamage", message: "High Damage Round!" },
-            { type: "lowMana", message: "Low Mana Round!" },
-            { type: "extraTank", message: "Extra Tank Round!" }
-          ]
-        : [
-            { type: "highDamage", message: "High Damage Round!" },
-            { type: "lowMana", message: "Low Mana Round!" },
-            { type: "criticalCondition", message: "Critical Condition Round!" }
-          ];
-      const selectedModifier = modifiers[Math.floor(Math.random() * modifiers.length)];
-      modifier = selectedModifier.type;
-      modifierMessage = selectedModifier.message;
-      modifierMessageTimer = 5;
+    // **Apply Modifiers Randomly**
+    let appliedModifier = false;
+    if (Math.random() < 0.5) {
+      const availableModifiers = Object.keys(modifiers);
+      const selectedKey = availableModifiers[Math.floor(Math.random() * availableModifiers.length)];
+      const selectedModifier = modifiers[selectedKey];
+
+      if (selectedModifier) {
+        modifierMessage = selectedModifier.message;
+        modifierMessageTimer = 5;
+        selectedModifier.applyEffect(targets);
+        appliedModifier = true;
+      }
     }
 
-    targets = [];
+    // **Generate Targets**
     let addedExtraTank = false;
     for (let i = 0; i < numTargets; i++) {
       let damageRate = i === 0 ? tankDamageRate : dpsDamageRate;
-      if (modifier === "extraTank" && i === 1 && !addedExtraTank) {
+
+      // **Extra Tank Modifier**
+      if (!addedExtraTank && appliedModifier && modifierMessage.includes("Extra Tank")) {
         damageRate = tankDamageRate;
         addedExtraTank = true;
       }
+
+      // **Healer Target if 10+ Rounds**
       if (round >= 10 && i === numTargets - 1) {
         damageRate = healerDamageRate;
       }
+
+      // **Random Health Variance**
       let health = baseHealth;
       if (round <= 9) {
         const healthVariance = (Math.random() * 0.2 - 0.1) * health;
         health = Math.max(30, Math.min(100, health + healthVariance));
       }
-      if (modifier === "criticalCondition" && i === Math.floor(Math.random() * numTargets)) {
+
+      // **Critical Condition Modifier**
+      if (appliedModifier && modifierMessage.includes("Critical Condition") && Math.random() < 0.25) {
         health = 10;
       }
+
       targets.push({
         health: health,
         maxHealth: 100,
@@ -344,21 +359,10 @@ function nextRound() {
       });
     }
 
-    if (modifier === "highDamage") {
+    // **Modifier Effects**
+    if (appliedModifier && modifierMessage.includes("High Damage")) {
       targets.forEach(target => target.damageRate *= 1.2);
-    } else if (modifier === "lowMana") {
-      manaRegen -= 0.5;
     }
-  }
-
-  // Ensure early rounds still feel meaningful
-  if (round < 6) {
-    targets = Array.from({ length: numTargets }, () => ({
-      health: baseHealth,
-      maxHealth: 100,
-      damageRate: baseDamageRate,
-      renewTime: 0
-    }));
   }
 
   updateDisplay();
