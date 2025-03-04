@@ -28,6 +28,22 @@ let updateInterval = null;
 let modifierMessage = "";
 let modifierMessageTimer = 0;
 
+// ✅ Reduce Console Logging Frequency
+function globalLogSummary() {
+  console.log(`GLOBAL STATUS UPDATE: 
+  - Round: ${round} | Time: ${Math.ceil(roundTime)}s | Mana: ${Math.floor(mana)}/${maxMana}
+  - Targets: ${targets.length}, Casting: ${casting ? castSpellType : "None"}`);
+
+  lastGlobalLog = Date.now();
+}
+
+// ✅ Ensure Log Summary Runs Every 5 Seconds
+function checkGlobalLog() {
+  if (Date.now() - lastGlobalLog >= 5000) {
+    globalLogSummary();
+  }
+}
+
 // Leaderboard functions
 async function loadLeaderboard() {
   console.log("Loading leaderboard from server...");
@@ -124,6 +140,23 @@ function startGame() {
   }
   updateDisplay();
 }
+
+// ✅ Ensure Clicks Register Between Rounds
+function startGame() {
+  console.log("Game Started.");
+  gameStarted = true;
+  gameEnded = false;
+  roundTime = 20;
+  lastUpdate = Date.now();
+  document.getElementById("startScreen").style.display = "none";
+  document.getElementById("gameContent").style.display = "block";
+
+  // ✅ Adjust Update Interval to Allow Button Clicks
+  if (!updateInterval) {
+    updateInterval = setInterval(updateProgress, inRound ? 100 : 200);
+  }
+}
+
 
 function castSpell(event, targetIndex) {
   if (!gameStarted || gameEnded) {
@@ -359,7 +392,6 @@ function endGame(result) {
 
 function updateDisplay() {
   if (!gameStarted) return;
-  console.log("Updating display: round=", round, "inRound=", inRound, "gameEnded=", gameEnded, "roundTime=", roundTime, "casting=", casting);
   document.getElementById("status").innerHTML = inRound 
     ? `Round ${round} - Time: ${Math.ceil(roundTime)}s`
     : `Round ${round} Complete!`;
@@ -471,14 +503,12 @@ function updateProgress() {
     console.log("Update progress skipped: gameStarted=", gameStarted, "gameEnded=", gameEnded);
     return;
   }
-  console.log("Updating progress: roundTime=", roundTime, "mana=", mana);
   let now = Date.now();
   let timePassed = (now - lastUpdate) / 1000;
   if (inRound) {
     mana = Math.min(maxMana, mana + manaRegen * timePassed);
     roundTime -= timePassed;
     targets.forEach((target, i) => {
-      console.log(`Target ${i} health before: ${target.health}, damageRate: ${target.damageRate}, timePassed: ${timePassed}`);
       target.health = Math.max(0, target.health - target.damageRate * timePassed);
       
       if (target.renewTime > 0) {
@@ -488,7 +518,7 @@ function updateProgress() {
           target.health + healPerTick * timePassed
         );
         target.renewTime = Math.max(0, target.renewTime - timePassed);
-        console.log(`Renew tick on target ${i}: +${(healPerTick * timePassed).toFixed(1)} HP, remaining time: ${target.renewTime.toFixed(1)}s`);
+        console.log(`Renew tick on target ${i}: +${(healPerTick * timePassed).toFixed(1)} HP, remaining time: ${target.renewTime}s`);
       }
       
       if (round >= 10 && i === targets.length - 1) {
@@ -496,7 +526,6 @@ function updateProgress() {
           targets[j].health = Math.min(targets[j].maxHealth, targets[j].health + 1 * timePassed);
         }
       }
-      console.log(`Target ${i} health after: ${target.health}`);
     });
 
     if (targets.some(t => t.health <= 0) && !gameEnded) {
