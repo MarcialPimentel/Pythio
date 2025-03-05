@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <script src="game.js?version=1.8" onload="console.log('game.js loaded successfully with version 1.8')"></script>
+  <script src="game.js" onload="console.log('game.js loaded successfully with version 1.9')"></script>
   <style>
     body { 
       font-family: Arial, sans-serif; 
@@ -31,7 +31,7 @@
     button:hover { 
       background: #e6b800; 
     }
-    #manaBar, #healthBars, #talents { 
+    #manaBar, #castBarContainer, #healthBars, #talents, #eventMessage { 
       max-width: 1200px; 
       margin: 20px auto; 
       display: flex; 
@@ -50,7 +50,7 @@
       height: 100%; 
       background: #1e90ff; 
       width: 0%; 
-      transition: width 0.5s; 
+      transition: width 0.1s linear; 
     }
     .mana-text { 
       position: absolute; 
@@ -58,6 +58,34 @@
       text-align: center; 
       font-size: 16px; 
       line-height: 30px; 
+    }
+    #castBarContainer { 
+      height: 40px; 
+      position: relative; 
+    }
+    #castBar { 
+      width: 250px; 
+      height: 20px; 
+      background: #ccc; 
+      margin: 10px auto; 
+      border: 1px solid #000; 
+      position: absolute; 
+      left: 50%; 
+      transform: translateX(-50%); 
+      display: none; 
+    }
+    .cast-fill { 
+      height: 100%; 
+      background: #ffaa00; 
+      width: 0%; 
+      transition: width 0.1s linear; 
+    }
+    .cast-text { 
+      position: absolute; 
+      width: 100%; 
+      text-align: center; 
+      font-size: 14px; 
+      line-height: 20px; 
     }
     .health-bar { 
       width: 250px; 
@@ -72,7 +100,7 @@
       height: 100%; 
       background: #4CAF50; 
       width: 0%; 
-      transition: width 0.5s; 
+      transition: width 0.1s linear; 
     }
     .health-text { 
       position: absolute; 
@@ -80,6 +108,12 @@
       text-align: center; 
       font-size: 18px; 
       line-height: 50px; 
+    }
+    #eventMessage { 
+      font-size: 18px; 
+      color: #ff5555; 
+      margin: 10px auto; 
+      min-height: 24px; 
     }
     #instructions { 
       position: fixed; 
@@ -103,8 +137,12 @@
       flex-direction: column; 
       justify-content: center; 
       align-items: center; 
+      z-index: 10; /* Ensure startScreen is above gameContent when visible */
     }
-    #gameContent { display: none; }
+    #gameContent { 
+      display: none; 
+      z-index: 1; /* Ensure gameContent is below startScreen when startScreen is visible */
+    }
     #leaderboard { 
       margin: 20px; 
       max-width: 600px; 
@@ -120,13 +158,23 @@
     #leaderboard li { 
       margin: 5px 0; 
     }
+    #debugPanel { 
+      position: absolute; 
+      top: 10px; 
+      right: 10px; 
+      background: #fff; 
+      padding: 10px; 
+      border: 1px solid #000; 
+      display: none; 
+      z-index: 20; /* Ensure debug panel is above everything */
+    }
   </style>
 </head>
 <body>
   <div id="startScreen">
     <h1>Pythio</h1>
     <p>Heal adventurers through 5 rounds of combat!</p>
-    <button onclick="startGame()">Start Game</button>
+    <button onclick="game.start()">Start Game</button>
     <div id="leaderboard">
       <h3>Leaderboard (Highest Round)</h3>
       <ul id="leaderboardList"></ul>
@@ -134,23 +182,34 @@
   </div>
   <div id="gameContent">
     <h1>Pythio</h1>
-    <div id="status">Round 1 - Time: 30s</div>
+    <div id="status">Round 1 - Time: 10s</div>
+    <div id="healthBars">
+      <div class="health-bar" onmousedown="game.spellManager.cast(event, 0)" oncontextmenu="return false;">
+        <div class="health-fill" id="healthFill0" style="width: 60%;"></div>
+        <div class="health-text" id="healthText0">60/100</div>
+      </div>
+    </div>
+    <div id="castBarContainer">
+      <div id="castBar">
+        <div class="cast-fill" id="castFill"></div>
+        <div class="cast-text" id="castText"></div>
+      </div>
+    </div>
     <div id="manaBar">
       <div class="mana-bar">
         <div class="mana-fill" id="manaFill" style="width: 100%;"></div>
         <div class="mana-text" id="manaText">100/100</div>
       </div>
     </div>
-    <div id="healthBars">
-      <div class="health-bar" onmousedown="castSpell(event, 0)" oncontextmenu="return false;">
-        <div class="health-fill" id="healthFill0" style="width: 75%;"></div>
-        <div class="health-text" id="healthText0">75/100</div>
-      </div>
-    </div>
+    <div id="eventMessage"></div>
     <div id="talents"></div>
     <div id="instructions">
-      <p>Left-click: Lesser Heal (20 HP, 10 Mana)</p>
+      <p>Left-click: Lesser Heal (20 HP, 10 Mana, 2s)</p>
     </div>
+  </div>
+  <div id="debugPanel">
+    <button onclick="addMana(50)">+50 Mana</button>
+    <button onclick="skipRound()">Skip Round</button>
   </div>
 </body>
 </html>
