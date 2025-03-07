@@ -102,12 +102,24 @@
       width: 0%; 
       transition: width 0.1s linear; 
     }
+    .shield-fill { 
+      height: 100%; 
+      background: #999; /* Grey color for shield */
+      width: 0%; 
+      position: absolute; 
+      top: 0; 
+      right: 0; /* Position on the right side */
+      transform: translateX(100%); /* Start from the right edge */
+      transition: width 0.1s linear; 
+      opacity: 0.7; /* Slightly transparent */
+    }
     .health-text { 
       position: absolute; 
       width: 100%; 
       text-align: center; 
       font-size: 18px; 
       line-height: 50px; 
+      z-index: 1; /* Ensure text is above fills */
     }
     #eventMessage { 
       font-size: 18px; 
@@ -186,6 +198,7 @@
     <div id="healthBars">
       <div class="health-bar" onmousedown="game.spellManager.cast(event, 0)" oncontextmenu="return false;">
         <div class="health-fill" id="healthFill0" style="width: 60%;"></div>
+        <div class="shield-fill" id="shieldFill0" style="width: 0%;"></div>
         <div class="health-text" id="healthText0">60/100</div>
       </div>
     </div>
