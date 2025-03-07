@@ -87,31 +87,34 @@
       font-size: 14px; 
       line-height: 20px; 
     }
-    .health-bar { 
-      width: 250px; 
-      height: 50px; 
-      background: #ccc; 
-      margin: 15px; 
-      border: 1px solid #000; 
-      position: relative; 
-      cursor: pointer; 
+    .health-bar {
+      width: 250px;
+      height: 50px;
+      background: #ccc;
+      margin: 15px;
+      border: 1px solid #000;
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
     }
-    .health-fill { 
-      height: 100%; 
-      background: #4CAF50; 
-      width: 0%; 
-      transition: width 0.1s linear; 
+    .health-fill {
+      height: 100%;
+      background: #4CAF50;
+      width: 0%;
+      transition: width 0.1s linear;
+      position: absolute;
+      left: 0;
+      top: 0;
     }
-    .shield-fill { 
-      height: 100%; 
-      background: #999; /* Grey color for shield */
-      width: 0%; 
-      position: absolute; 
-      top: 0; 
-      right: 0; /* Position on the right side */
-      transform: translateX(100%); /* Start from the right edge */
-      transition: width 0.1s linear; 
-      opacity: 0.7; /* Slightly transparent */
+    .shield-fill {
+      height: 100%;
+      background: #666; /* Darker grey for better contrast */
+      width: 0%;
+      transition: width 0.1s linear;
+      position: absolute;
+      top: 0;
+      left: 0; /* Adjusted dynamically in JS */
+      opacity: 0.8; /* Slightly transparent */
     }
     .health-text { 
       position: absolute; 
@@ -119,7 +122,7 @@
       text-align: center; 
       font-size: 18px; 
       line-height: 50px; 
-      z-index: 1; /* Ensure text is above fills */
+      z-index: 1;
     }
     #eventMessage { 
       font-size: 18px; 
@@ -149,11 +152,11 @@
       flex-direction: column; 
       justify-content: center; 
       align-items: center; 
-      z-index: 10; /* Ensure startScreen is above gameContent when visible */
+      z-index: 10;
     }
     #gameContent { 
       display: none; 
-      z-index: 1; /* Ensure gameContent is below startScreen when startScreen is visible */
+      z-index: 1;
     }
     #leaderboard { 
       margin: 20px; 
@@ -178,7 +181,7 @@
       padding: 10px; 
       border: 1px solid #000; 
       display: none; 
-      z-index: 20; /* Ensure debug panel is above everything */
+      z-index: 20;
     }
   </style>
 </head>
