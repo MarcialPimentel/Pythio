@@ -1,17 +1,16 @@
 // Game class to manage core state and flow
-// Game class with adjusted spell selection state management
 class Game {
   constructor() {
     this.state = {
       round: 1,
       mana: 100,
       maxMana: 100,
-      manaRegen: 3, // 3 mana/second for early rounds
-      roundTime: 10, // Start at 10 seconds
+      manaRegen: 3,
+      roundTime: 10,
       inRound: true,
       gameStarted: false,
-      spellSelected: false, // Tracks if a spell has been selected for the current 2-round cycle
-      spellSelectionRound: 0, // Tracks the last round a spell was selected
+      spellSelected: false,
+      spellSelectionRound: 0,
       gameEnded: false,
       updateInterval: null,
       lastUpdate: Date.now(),
@@ -68,7 +67,7 @@ class Game {
     this.state.inRound = true;
     this.state.gameStarted = false;
     this.state.spellSelected = false;
-    this.state.spellSelectionRound = 0; // Reset spell selection round
+    this.state.spellSelectionRound = 0;
     this.state.gameEnded = false;
     this.state.postRound = false;
     this.state.lastUpdate = Date.now();
@@ -99,7 +98,6 @@ class Game {
     console.log(`Round ${this.state.round} timer set to ${this.state.roundTime} seconds`);
     this.state.inRound = true;
     this.state.postRound = false;
-    // Only reset spellSelected if we've passed a selection round (every 2 rounds)
     if (this.state.round % 2 !== 0) {
       this.state.spellSelected = false;
     }
@@ -112,19 +110,14 @@ class Game {
     this.uiManager.update();
   }
 
-setObjective() {
-  // Objective: Ensure no target dies (health > 0)
-  this.objective = {
-    description: "Ensure no target dies",
-    check: () => {
-      const result = !this.targetManager.checkLossCondition();
-      console.log(`Objective check result: ${result}`);
-      return result;
-    }
-  };
-}
+  setObjective() {
+    this.objective = {
+      description: "Ensure no target dies",
+      check: () => !this.targetManager.checkLossCondition()
+    };
+  }
 
- update() {
+  update() {
     if (!this.state.gameStarted || this.state.gameEnded || !this.state.inRound) return;
 
     const now = Date.now();
@@ -133,18 +126,15 @@ setObjective() {
     this.state.mana = Math.min(this.state.maxMana, this.state.mana + this.state.manaRegen * timePassed);
     this.state.roundTime -= timePassed;
 
-    // Update targets (apply damage, healing, etc.)
     this.targetManager.updateTargets(timePassed);
     this.spellManager.updateCasting(timePassed);
 
-    // Check if any target has died (immediate loss condition)
     if (this.targetManager.checkLossCondition()) {
       console.log("Target health reached 0, ending game...");
       this.endGame("defeat");
       return;
     }
 
-    // Check if the round has ended (timer <= 0)
     if (this.state.roundTime <= 0) {
       console.log(`Round ended. Target health: ${this.targetManager.targets.map(t => t.health.toFixed(2)).join(", ")}`);
       console.log("Round completed successfully, entering post-round state...");
@@ -156,7 +146,6 @@ setObjective() {
       }
     }
 
-    // Periodic status log every 5 seconds
     if (now - this.state.lastGlobalLog >= 5000) {
       console.log(`Game Status: Round ${this.state.round}, Time: ${Math.ceil(this.state.roundTime)}s, Mana: ${Math.floor(this.state.mana)}/${this.state.maxMana}, Regen: ${this.state.manaRegen.toFixed(1)}/s, Targets: ${this.targetManager.targets.map(t => Math.floor(t.health)).join(", ")}`);
       this.state.lastGlobalLog = now;
@@ -278,7 +267,6 @@ class SpellManager {
       if (this.castSpellType === "chainHeal") {
         target.health = Math.min(target.maxHealth, target.health + spell.healAmount);
         console.log(`Chain Heal healed target ${this.castTargetIndex} for ${spell.healAmount}`);
-        // Heal one adjacent target (simplified to next target, wrapping around)
         const nextIndex = (this.castTargetIndex + 1) % this.game.targetManager.targets.length;
         const nextTarget = this.game.targetManager.targets[nextIndex];
         if (nextTarget.health < nextTarget.maxHealth) {
@@ -308,12 +296,11 @@ class SpellManager {
       this.spells[spell].enabled = true;
     }
     this.game.state.spellSelected = true;
-    this.game.state.spellSelectionRound = this.game.state.round; // Update the last selection round
+    this.game.state.spellSelectionRound = this.game.state.round;
     this.game.uiManager.debouncedUpdate();
   }
 }
 
-// TargetManager with fixed loss condition and Critical Condition
 class TargetManager {
   constructor(game) {
     this.game = game;
@@ -339,7 +326,7 @@ class TargetManager {
           console.log("Applying Critical Condition Modifier: One target starts at 10 HP.");
           const targetIndex = Math.floor(Math.random() * targets.length);
           if (targets[targetIndex]) {
-            targets[targetIndex].health = 10; // Ensure at least one target starts at low health
+            targets[targetIndex].health = 10;
             console.log(`Target ${targetIndex} set to 10 HP for Critical Condition`);
           }
         }
@@ -426,7 +413,7 @@ class TargetManager {
           health = Math.max(30, Math.min(100, health + healthVariance));
         }
         if (appliedModifier && this.game.uiManager.modifierMessage.includes("Critical Condition")) {
-          health = 10; // Force Critical Condition to set health to 10 for at least one target
+          health = 10;
         }
 
         this.targets.push({ health, maxHealth: 100, damageRate, renewTime: 0, shield: 0, shieldTime: 0 });
@@ -447,8 +434,15 @@ class TargetManager {
       target.health = Math.max(0, target.health - damage);
       if (target.renewTime > 0) {
         const healPerTick = this.game.spellManager.spells.renew.healAmount / this.game.spellManager.spells.renew.duration;
-        target.health = Math.min(target.maxHealth, target.health + healPerTick * timePassed);
+        const healing = healPerTick * timePassed;
+        target.health = Math.min(target.maxHealth, target.health + healing);
         target.renewTime = Math.max(0, target.renewTime - timePassed);
+        if (healing > 0) {
+          target.lastHealing = healing;
+          console.log(`Renew healing target ${i}: +${Math.floor(healing)} HP, new health: ${Math.floor(target.health)}`);
+        }
+      } else {
+        target.lastHealing = 0;
       }
       if (this.game.state.round >= 10 && i === this.targets.length - 1) {
         for (let j = 0; j < this.targets.length - 1; j++) {
@@ -459,11 +453,10 @@ class TargetManager {
   }
 
   checkLossCondition() {
-    return this.targets.some(t => t.health <= 0); // Ensure game ends when health hits 0
+    return this.targets.some(t => t.health <= 0);
   }
 }
 
-// UIManager class to handle UI updates
 class UIManager {
   constructor(game, spellManager, targetManager) {
     this.game = game;
@@ -487,104 +480,112 @@ class UIManager {
     this.modifierMessageTimer = duration;
   }
 
-  update() {
-    if (!this.game.state.gameStarted) return;
+update() {
+  if (!this.game.state.gameStarted) return;
 
-    const status = document.getElementById("status");
-    if (status) {
-      status.innerHTML = this.game.state.inRound
-        ? `Round ${this.game.state.round} - Time: ${Math.ceil(this.game.state.roundTime)}s${this.game.objective ? ` - ${this.game.objective.description}` : ""}`
-        : `Round ${this.game.state.round} Complete!`;
-    }
+  const status = document.getElementById("status");
+  if (status) {
+    status.innerHTML = this.game.state.inRound
+      ? `Round ${this.game.state.round} - Time: ${Math.ceil(this.game.state.roundTime)}s${this.game.objective ? ` - ${this.game.objective.description}` : ""}`
+      : `Round ${this.game.state.round} Complete!`;
+  }
 
-    const manaFill = document.getElementById("manaFill");
-    const manaText = document.getElementById("manaText");
-    if (manaFill && manaText) {
-      manaFill.style.width = `${(this.game.state.mana / this.game.state.maxMana) * 100}%`;
-      manaText.innerHTML = `${Math.floor(this.game.state.mana)}/${this.game.state.maxMana}`;
-    }
+  const manaFill = document.getElementById("manaFill");
+  const manaText = document.getElementById("manaText");
+  if (manaFill && manaText) {
+    manaFill.style.width = `${(this.game.state.mana / this.game.state.maxMana) * 100}%`;
+    manaText.innerHTML = `${Math.floor(this.game.state.mana)}/${this.game.state.maxMana}`;
+  }
 
-    const castBar = document.getElementById("castBar");
-    const castFill = document.getElementById("castFill");
-    const castText = document.getElementById("castText");
-    if (castBar && castFill && castText) {
-      if (this.spellManager.casting) {
-        castBar.style.display = "block";
-        const progressPercent = (this.spellManager.castProgress / this.spellManager.castDuration) * 100;
-        castFill.style.width = `${progressPercent}%`;
-        const remainingTime = Math.max(0, (this.spellManager.castDuration - this.spellManager.castProgress)).toFixed(1);
-        castText.innerHTML = `Casting ${this.spellManager.castSpellType === "heal" ? "Heal" : this.spellManager.castSpellType === "lesserHeal" ? "Lesser Heal" : this.spellManager.castSpellType === "greaterHeal" ? "Greater Heal" : this.spellManager.castSpellType === "chainHeal" ? "Chain Heal" : "Flash Heal"} (${remainingTime}s)...`;
-      } else {
-        castBar.style.display = "none";
-      }
-    }
-
-    const eventMessageDiv = document.getElementById("eventMessage");
-    if (eventMessageDiv) {
-      eventMessageDiv.innerHTML = this.modifierMessage;
-      if (this.modifierMessageTimer > 0) {
-        this.modifierMessageTimer -= (Date.now() - this.game.state.lastUpdate) / 1000;
-        if (this.modifierMessageTimer <= 0) this.modifierMessage = "";
-      }
-    }
-
-    let healthBarsHTML = "";
-    if (this.game.state.inRound) {
-      this.targetManager.targets.forEach((target, i) => {
-        const healthPercent = (target.health / target.maxHealth) * 100;
-        const shieldPercent = target.shield > 0 ? (target.shield / target.maxHealth) * 100 : 0;
-        healthBarsHTML += `
-          <div class="health-bar" onmousedown="game.spellManager.cast(event, ${i})" oncontextmenu="return false;">
-            <div class="health-fill" id="healthFill${i}" style="width: ${healthPercent}%;"></div>
-            <div class="shield-fill" id="shieldFill${i}" style="width: ${shieldPercent}%;"></div>
-            <div class="health-text" id="healthText${i}">${Math.floor(target.health)}/${target.maxHealth}${target.shield > 0 ? ` (+${Math.floor(target.shield)})` : ""}</div>
-          </div>
-        `;
-      });
-    }
-    const healthBars = document.getElementById("healthBars");
-    if (healthBars) healthBars.innerHTML = healthBarsHTML;
-
-    const talents = document.getElementById("talents");
-    if (talents) {
-      if (this.game.state.postRound && !this.game.state.gameEnded) {
-        let availableSpells = [];
-        // Show spell selection every 2 rounds AND if no spell has been selected in the current cycle
-        if (this.game.state.round % 2 === 0 && !this.game.state.spellSelected) {
-          if (!this.spellManager.spells.flashHeal.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'flashHeal\')">Flash Heal (15 Mana, +40 HP)</button>');
-          if (!this.spellManager.spells.heal.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'heal\')">Heal (20 Mana, +30 HP) - Replaces Lesser Heal</button>');
-          if (!this.spellManager.spells.renew.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'renew\')">Renew (25 Mana, +50 HP over 10s)</button>');
-          if (!this.spellManager.spells.greaterHeal.enabled && this.spellManager.spells.heal.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'greaterHeal\')">Greater Heal (30 Mana, +50 HP) - Replaces Heal</button>');
-          if (!this.spellManager.spells.chainHeal.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'chainHeal\')">Chain Heal (35 Mana, +30 HP + 15 HP x2)</button>');
-          if (!this.spellManager.spells.shield.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'shield\')">Shield (20 Mana, 30 HP absorb)</button>');
-        }
-        talents.innerHTML = availableSpells.length > 0
-          ? `<p>Choose a new spell:</p>${availableSpells.join(" ")}`
-          : `<p>Round ${this.game.state.round} Complete! Continue to the next challenge?</p><button onclick="game.nextRound()">Next Round</button>`;
-      } else if (this.game.state.inRound) {
-        talents.innerHTML = "";
-      } else {
-        talents.innerHTML = `<p>Game Over! You reached Round ${this.game.state.round}.</p><button onclick="game.reset()">Play Again</button>`;
-      }
-    }
-
-    const instructions = document.getElementById("instructions");
-    if (instructions) {
-      const activeHealSpell = this.spellManager.spells.greaterHeal.enabled ? "greaterHeal" : this.spellManager.spells.heal.enabled ? "heal" : "lesserHeal";
-      const healCost = this.spellManager.spells[activeHealSpell].manaCost;
-      instructions.innerHTML = `
-        <p ${this.game.state.mana >= healCost ? 'class="spell-available"' : 'class="spell-unavailable"'}>Left-click: ${activeHealSpell === "greaterHeal" ? 'Greater Heal (50 HP, 30 Mana, 3s)' : activeHealSpell === "heal" ? 'Heal (30 HP, 20 Mana, 2.5s)' : 'Lesser Heal (20 HP, 10 Mana, 2s)'}</p>
-        ${this.spellManager.spells.flashHeal.enabled ? `<p ${this.game.state.mana >= this.spellManager.spells.flashHeal.manaCost ? 'class="spell-available"' : 'class="spell-unavailable"'}>Right-click: Flash Heal (40 HP, 15 Mana, 1s)</p>` : ''}
-        ${this.spellManager.spells.renew.enabled ? `<p ${this.game.state.mana >= this.spellManager.spells.renew.manaCost ? 'class="spell-available"' : 'class="spell-unavailable"'}>Shift + Left-click: Renew (50 HP over 10s, 25 Mana, Instant)</p>` : ''}
-        ${this.spellManager.spells.chainHeal.enabled ? `<p ${this.game.state.mana >= this.spellManager.spells.chainHeal.manaCost ? 'class="spell-available"' : 'class="spell-unavailable"'}>Ctrl + Left-click: Chain Heal (30 HP + 15 HP x2, 35 Mana, 2s)</p>` : ''}
-        ${this.spellManager.spells.shield.enabled ? `<p ${this.game.state.mana >= this.spellManager.spells.shield.manaCost ? 'class="spell-available"' : 'class="spell-unavailable"'}>Alt + Left-click: Shield (30 HP absorb, 20 Mana, Instant)</p>` : ''}
-      `;
+  const castBar = document.getElementById("castBar");
+  const castFill = document.getElementById("castFill");
+  const castText = document.getElementById("castText");
+  if (castBar && castFill && castText) {
+    if (this.spellManager.casting) {
+      castBar.style.display = "block";
+      const progressPercent = (this.spellManager.castProgress / this.spellManager.castDuration) * 100;
+      castFill.style.width = `${progressPercent}%`;
+      const remainingTime = Math.max(0, (this.spellManager.castDuration - this.spellManager.castProgress)).toFixed(1);
+      castText.innerHTML = `Casting ${this.spellManager.castSpellType === "heal" ? "Heal" : this.spellManager.castSpellType === "lesserHeal" ? "Lesser Heal" : this.spellManager.castSpellType === "greaterHeal" ? "Greater Heal" : this.spellManager.castSpellType === "chainHeal" ? "Chain Heal" : "Flash Heal"} (${remainingTime}s)...`;
+    } else {
+      castBar.style.display = "none";
     }
   }
+
+  const eventMessageDiv = document.getElementById("eventMessage");
+  if (eventMessageDiv) {
+    eventMessageDiv.innerHTML = this.modifierMessage;
+    if (this.modifierMessageTimer > 0) {
+      this.modifierMessageTimer -= (Date.now() - this.game.state.lastUpdate) / 1000;
+      if (this.modifierMessageTimer <= 0) this.modifierMessage = "";
+    }
+  }
+
+  let healthBarsHTML = "";
+  if (this.game.state.inRound) {
+    this.targetManager.targets.forEach((target, i) => {
+      const totalMax = target.maxHealth;
+      const healthPercent = (target.health / totalMax) * 100;
+      const shieldPercent = target.shield > 0 ? (target.shield / totalMax) * 100 : 0;
+      const healthWidth = Math.min(100, healthPercent);
+      const shieldLeft = healthWidth;
+      const shieldWidth = Math.min(100 - healthWidth, shieldPercent);
+
+      const renewRemaining = target.renewTime > 0 ? Math.max(0, target.renewTime).toFixed(1) : 0;
+      const healthTextColor = target.renewTime > 0 ? "green" : "#3c2f2f";
+      const renewText = target.renewTime > 0 ? ` (+${renewRemaining}s)` : "";
+
+      healthBarsHTML += `
+        <div class="health-bar" onmousedown="game.spellManager.cast(event, ${i})" oncontextmenu="return false;">
+          <div class="health-fill" id="healthFill${i}" style="width: ${healthWidth}%;"></div>
+          <div class="shield-fill" id="shieldFill${i}" style="left: ${shieldLeft}%; width: ${shieldWidth}%;"></div>
+          <div class="health-text" id="healthText${i}" style="color: ${healthTextColor};">
+            ${Math.floor(target.health)}/${target.maxHealth}${target.shield > 0 ? ` (+${Math.floor(target.shield)})` : ""}${renewText}
+          </div>
+        </div>
+      `;
+    });
+  }
+  const healthBars = document.getElementById("healthBars");
+  if (healthBars) healthBars.innerHTML = healthBarsHTML;
+
+  const talents = document.getElementById("talents");
+  if (talents) {
+    if (this.game.state.postRound && !this.game.state.gameEnded) {
+      let availableSpells = [];
+      if (this.game.state.round % 2 === 0 && !this.game.state.spellSelected) {
+        if (!this.spellManager.spells.flashHeal.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'flashHeal\')">Flash Heal (15 Mana, +40 HP)</button>');
+        if (!this.spellManager.spells.heal.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'heal\')">Heal (20 Mana, +30 HP) - Replaces Lesser Heal</button>');
+        if (!this.spellManager.spells.renew.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'renew\')">Renew (25 Mana, +50 HP over 10s)</button>');
+        if (!this.spellManager.spells.greaterHeal.enabled && this.spellManager.spells.heal.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'greaterHeal\')">Greater Heal (30 Mana, +50 HP) - Replaces Heal</button>');
+        if (!this.spellManager.spells.chainHeal.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'chainHeal\')">Chain Heal (35 Mana, +30 HP + 15 HP x2)</button>');
+        if (!this.spellManager.spells.shield.enabled) availableSpells.push('<button onclick="game.spellManager.unlock(\'shield\')">Shield (20 Mana, 30 HP absorb)</button>');
+      }
+      talents.innerHTML = availableSpells.length > 0
+        ? `<p>Choose a new spell:</p>${availableSpells.join(" ")}`
+        : `<p>Round ${this.game.state.round} Complete! Continue to the next challenge?</p><button onclick="game.nextRound()">Next Round</button>`;
+    } else if (this.game.state.inRound) {
+      talents.innerHTML = "";
+    } else {
+      talents.innerHTML = `<p>Game Over! You reached Round ${this.game.state.round}.</p><button onclick="game.reset()">Play Again</button>`;
+    }
+  }
+
+  const instructions = document.getElementById("instructions");
+  if (instructions) {
+    const activeHealSpell = this.spellManager.spells.greaterHeal.enabled ? "greaterHeal" : this.spellManager.spells.heal.enabled ? "heal" : "lesserHeal";
+    const healCost = this.spellManager.spells[activeHealSpell].manaCost;
+    instructions.innerHTML = `
+      <p ${this.game.state.mana >= healCost ? 'class="spell-available"' : 'class="spell-unavailable"'}>Left-click: ${activeHealSpell === "greaterHeal" ? 'Greater Heal (50 HP, 30 Mana, 3s)' : activeHealSpell === "heal" ? 'Heal (30 HP, 20 Mana, 2.5s)' : 'Lesser Heal (20 HP, 10 Mana, 2s)'}</p>
+      ${this.spellManager.spells.flashHeal.enabled ? `<p ${this.game.state.mana >= this.spellManager.spells.flashHeal.manaCost ? 'class="spell-available"' : 'class="spell-unavailable"'}>Right-click: Flash Heal (40 HP, 15 Mana, 1s)</p>` : ''}
+      ${this.spellManager.spells.renew.enabled ? `<p ${this.game.state.mana >= this.spellManager.spells.renew.manaCost ? 'class="spell-available"' : 'class="spell-unavailable"'}>Shift + Left-click: Renew (50 HP over 10s, 25 Mana, Instant)</p>` : ''}
+      ${this.spellManager.spells.chainHeal.enabled ? `<p ${this.game.state.mana >= this.spellManager.spells.chainHeal.manaCost ? 'class="spell-available"' : 'class="spell-unavailable"'}>Ctrl + Left-click: Chain Heal (30 HP + 15 HP x2, 35 Mana, 2s)</p>` : ''}
+      ${this.spellManager.spells.shield.enabled ? `<p ${this.game.state.mana >= this.spellManager.spells.shield.manaCost ? 'class="spell-available"' : 'class="spell-unavailable"'}>Alt + Left-click: Shield (30 HP absorb, 20 Mana, Instant)</p>` : ''}
+    `;
+  }
+}
 }
 
-
-// LeaderboardManager class to handle leaderboard
 class LeaderboardManager {
   constructor(uiManager) {
     this.uiManager = uiManager;
@@ -602,7 +603,6 @@ class LeaderboardManager {
       console.log("Leaderboard loaded:", this.leaderboard);
     } catch (error) {
       console.error("Error loading leaderboard:", error.message);
-      // Fallback to a default leaderboard if fetch fails
       this.leaderboard = [
         { name: "Fish", round: 20 },
         { name: "Marz", round: 18 },
@@ -650,15 +650,12 @@ class LeaderboardManager {
   }
 }
 
-// Instantiate the game
 const game = new Game();
 
-// DOM setup and debug controls
 document.addEventListener("DOMContentLoaded", () => {
   console.log("DOM fully loaded, calling reset...");
   game.reset();
 
-  // Debug panel toggle
   document.addEventListener("keydown", (e) => {
     if (e.key === "F1") {
       const panel = document.getElementById("debugPanel");
@@ -671,7 +668,6 @@ window.onfocus = () => {
   if (game.state.inRound && game.state.gameStarted && !game.state.gameEnded) game.update();
 };
 
-// Debug functions
 function addMana(amount) {
   game.state.mana = Math.min(game.state.maxMana, game.state.mana + amount);
   console.log(`Debug: Added ${amount} mana, now ${game.state.mana}`);
