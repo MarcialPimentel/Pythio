@@ -423,13 +423,40 @@ class TargetManager {
           targets.forEach(target => target.damageRate *= 1.2);
         }
       },
-      extraTank: {
-        message: "Extra Tank Round!",
-        applyEffect: (targets) => {
-          console.log("Applying Extra Tank Modifier: Adding a tank.");
-          targets.push({ health: 100, maxHealth: 100, damageRate: 3, renewTime: 0, shield: 0, shieldTime: 0 });
-        }
-      },
+extraTank: {
+ message: "Extra Tank Round!",
+ applyEffect: (targets) => {
+ console.log("Applying Extra Tank Modifier: Adding a tank.");
+ const round = this.game.state.round;
+ const healthMultiplier = 1 + Math.floor((round - 1) / 10) * 0.1;
+ const heavyArmor = this.armorTypes.heavy;
+ const heavyPattern = this.damagePatterns[heavyArmor.damagePattern]; // "bigHit"
+
+ if (!heavyPattern) {
+ console.error(`Invalid damage pattern for extra tank: ${heavyArmor.damagePattern}`);
+ return; // Exit if pattern is invalid
+ }
+
+ // Determine number of extra tanks: 1 for early rounds, 2 for later rounds
+ const extraTanks = round >= 5 ? 2 : 1;
+ for (let i = 0; i < extraTanks; i++) {
+ const extraTank = {
+ health: Math.round(heavyArmor.maxHealth * healthMultiplier),
+ maxHealth: Math.round(heavyArmor.maxHealth * healthMultiplier),
+ armor: "heavy",
+ damagePattern: heavyArmor.damagePattern, // Assign "bigHit"
+ nextTick: heavyPattern.type === "burst" ? heavyPattern.interval : 0,
+ warningActive: false,
+ dotTimeRemaining: 0,
+ renewTime: 0,
+ shield: 0,
+ shieldTime: 0
+ };
+ targets.push(extraTank);
+ console.log(`Added extra tank ${i + 1}: Health ${extraTank.health}, Pattern ${extraTank.damagePattern}`);
+ }
+ }
+},
       criticalCondition: {
         message: "Critical Condition Round!",
         applyEffect: (targets) => {
@@ -506,15 +533,18 @@ const healthMultiplier = 1 + Math.floor((round - 1) / 10) * 0.1; // +10% per 10 
   };
     this.targets.push(heavyTarget);
 
-    // Step 2: Determine number of additional targets (Medium or Light)
-    let additionalTargets;
-    if (round === 1) {
-      additionalTargets = 1; // 1 Heavy + 1 additional
-    } else if (round === 2) {
-      additionalTargets = 2; // 1 Heavy + 2 additional
-    } else {
-      additionalTargets = Math.min(6, round - 1); // Caps at 6 additional
-    }
+// Step 2: Determine number of additional targets (Medium or Light)
+let additionalTargets;
+const maxUnits = 10;
+const startingUnits = 1; // 1 Heavy
+const roundThreshold = 20; // By round 20, we want 5 total units
+
+if (round === 1) {
+  additionalTargets = 1; // 1 Heavy + 1 additional
+} else {
+  // Scale additional targets based on the round count
+  additionalTargets = Math.min(maxUnits - startingUnits, Math.floor((round - 1) / (roundThreshold / (maxUnits - startingUnits))));
+}
 
     // Apply a random modifier with 50% chance
   if (Math.random() < 0.5) {
