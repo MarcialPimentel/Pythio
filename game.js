@@ -159,18 +159,32 @@ nextRound() {
   }
 }
 
+class Spell {
+  constructor({ name, enabled = false, castTime = 0, manaCost, healAmount = 0, shieldAmount = 0, duration = 0, secondaryHeal = 0 }) {
+    this.name = name;
+    this.enabled = enabled;
+    this.castTime = castTime;
+    this.manaCost = manaCost;
+    this.healAmount = healAmount;
+    this.shieldAmount = shieldAmount;
+    this.duration = duration;
+    this.secondaryHeal = secondaryHeal;
+  }
+}
+
 class SpellManager {
   constructor(game) {
     this.game = game;
-    this.spells = {
-      lesserHeal: { enabled: true, castTime: 2, manaCost: 10, healAmount: 20 },
-      heal: { enabled: false, castTime: 2.5, manaCost: 20, healAmount: 30 },
-      flashHeal: { enabled: false, castTime: 1, manaCost: 15, healAmount: 40 },
-      renew: { enabled: false, castTime: 0, manaCost: 25, healAmount: 50, duration: 10 },
-      greaterHeal: { enabled: false, castTime: 3, manaCost: 30, healAmount: 50 },
-      chainHeal: { enabled: false, castTime: 2, manaCost: 35, healAmount: 30, secondaryHeal: 15 },
-      shield: { enabled: false, castTime: 0, manaCost: 20, shieldAmount: 30, duration: 5 }
+    this.spellDefinitions = {
+      lesserHeal: { name: "lesserHeal", enabled: true, castTime: 2, manaCost: 10, healAmount: 20 },
+      heal: { name: "heal", enabled: false, castTime: 2.5, manaCost: 20, healAmount: 30 },
+      flashHeal: { name: "flashHeal", enabled: false, castTime: 1, manaCost: 15, healAmount: 40 },
+      renew: { name: "renew", enabled: false, castTime: 0, manaCost: 25, healAmount: 50, duration: 10 },
+      greaterHeal: { name: "greaterHeal", enabled: false, castTime: 3, manaCost: 30, healAmount: 50 },
+      chainHeal: { name: "chainHeal", enabled: false, castTime: 2, manaCost: 35, healAmount: 30, secondaryHeal: 15 },
+      shield: { name: "shield", enabled: false, castTime: 0, manaCost: 20, shieldAmount: 30, duration: 5 }
     };
+    this.spells = this.initializeSpells();
     this.casting = false;
     this.castProgress = 0;
     this.castDuration = 0;
@@ -178,16 +192,16 @@ class SpellManager {
     this.castSpellType = "";
   }
 
+  initializeSpells() {
+    const spells = {};
+    for (const [key, definition] of Object.entries(this.spellDefinitions)) {
+      spells[key] = new Spell(definition);
+    }
+    return spells;
+  }
+
   reset() {
-    this.spells = {
-      lesserHeal: { enabled: true, castTime: 2, manaCost: 10, healAmount: 20 },
-      heal: { enabled: false, castTime: 2.5, manaCost: 20, healAmount: 30 },
-      flashHeal: { enabled: false, castTime: 1, manaCost: 15, healAmount: 40 },
-      renew: { enabled: false, castTime: 0, manaCost: 25, healAmount: 50, duration: 10 },
-      greaterHeal: { enabled: false, castTime: 3, manaCost: 30, healAmount: 50 },
-      chainHeal: { enabled: false, castTime: 2, manaCost: 35, healAmount: 30, secondaryHeal: 15 },
-      shield: { enabled: false, castTime: 0, manaCost: 20, shieldAmount: 30, duration: 5 }
-    };
+    this.spells = this.initializeSpells();
     this.casting = false;
     this.castProgress = 0;
     this.castDuration = 0;
@@ -471,6 +485,17 @@ class UIManager {
     this.checkDOMElements();
   }
 
+  // UI-specific data for spells (icons, bindings, display names)
+  spellIconsMap = {
+    lesserHeal: { src: "assets/images/icons/lesserheal.png", binding: "Left-click", displayName: "Lesser Heal" },
+    heal: { src: "assets/images/icons/heal.png", binding: "Left-click", displayName: "Heal" },
+    greaterHeal: { src: "assets/images/icons/greaterheal.png", binding: "Left-click", displayName: "Greater Heal" },
+    flashHeal: { src: "assets/images/icons/flashheal.png", binding: "Right-click", displayName: "Flash Heal" },
+    renew: { src: "assets/images/icons/renew.png", binding: "Shift + Left-click", displayName: "Renew" },
+    chainHeal: { src: "assets/images/icons/chainheal.png", binding: "Ctrl + Left-click", displayName: "Chain Heal" },
+    shield: { src: "assets/images/icons/shield.png", binding: "Alt + Left-click", displayName: "Shield" }
+  };
+
   checkDOMElements() {
     const requiredElements = ["status", "manaFill", "manaText", "castBar", "castFill", "castText", "eventMessage", "healthBars", "talents", "spellBar"];
     requiredElements.forEach(id => {
@@ -491,6 +516,58 @@ class UIManager {
   setModifierMessage(message, duration) {
     this.modifierMessage = message;
     this.modifierMessageTimer = duration;
+  }
+
+  generateTooltipText(spell) {
+    let text = `<strong>${this.spellIconsMap[spell.name].displayName}:</strong><br>`;
+    if (spell.healAmount) {
+      text += `Heals: ${spell.healAmount} HP`;
+      if (spell.duration) {
+        text += ` over ${spell.duration}s`;
+      }
+      text += `<br>`;
+    } else if (spell.shieldAmount) {
+      text += `Shields: ${spell.shieldAmount} HP for ${spell.duration}s<br>`;
+    }
+    if (spell.secondaryHeal) {
+      text += ` (+${spell.secondaryHeal} HP to adjacent)<br>`;
+    }
+    text += `Mana Cost: ${spell.manaCost}`;
+    if (spell.castTime > 0) {
+      text += `<br>Cast Time: ${spell.castTime}s`;
+    }
+    if (spell.duration && !spell.healAmount) {
+      text += `<br>Duration: ${spell.duration}s`;
+    }
+    text += `<br>Binding: ${this.spellIconsMap[spell.name].binding}`;
+    const canCast = spell.enabled && !this.spellManager.casting && this.game.state.mana >= spell.manaCost;
+    if (!canCast) {
+      text += `<br><span style="color: red;">${this.spellManager.casting ? "Casting in progress" : "Not enough mana"}</span>`;
+    }
+    return text;
+  }
+
+  getSpellDescription(spellType) {
+    const spell = this.spellManager.spells[spellType];
+    let description = `${this.spellIconsMap[spellType].displayName} (${spell.manaCost} Mana`;
+    if (spell.healAmount) {
+      description += `, +${spell.healAmount} HP`;
+      if (spell.duration) {
+        description += ` over ${spell.duration}s`;
+      }
+    } else if (spell.shieldAmount) {
+      description += `, ${spell.shieldAmount} HP absorb for ${spell.duration}s`;
+    }
+    if (spell.secondaryHeal) {
+      description += ` + ${spell.secondaryHeal} HP to adjacent`;
+    }
+    description += ")";
+    if (spellType === "heal") {
+      description += " - Replaces Lesser Heal";
+    } else if (spellType === "greaterHeal") {
+      description += " - Replaces Heal";
+    }
+    return description;
   }
 
   update() {
@@ -519,7 +596,9 @@ class UIManager {
         const progressPercent = (this.spellManager.castProgress / this.spellManager.castDuration) * 100;
         castFill.style.width = `${progressPercent}%`;
         const remainingTime = Math.max(0, (this.spellManager.castDuration - this.spellManager.castProgress)).toFixed(1);
-        castText.innerHTML = `Casting ${this.spellManager.castSpellType === "heal" ? "Heal" : this.spellManager.castSpellType === "lesserHeal" ? "Lesser Heal" : this.spellManager.castSpellType === "greaterHeal" ? "Greater Heal" : this.spellManager.castSpellType === "chainHeal" ? "Chain Heal" : "Flash Heal"} (${remainingTime}s)...`;
+        const spellType = this.spellManager.castSpellType;
+        const displayName = this.spellIconsMap[spellType].displayName;
+        castText.innerHTML = `Casting ${displayName} (${remainingTime}s)...`;
       } else {
         castBar.style.display = "none";
       }
@@ -567,49 +646,76 @@ class UIManager {
       if (this.game.state.postRound && !this.game.state.gameEnded) {
         let availableSpells = [];
         if (this.game.state.round % 2 === 0 && !this.game.state.spellSelected) {
-          if (!this.spellManager.spells.flashHeal.enabled) availableSpells.push('<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock(\'flashHeal\'); else console.log(\'window.game or spellManager undefined on flashHeal unlock\');">Flash Heal (15 Mana, +40 HP)</button>');
-          if (!this.spellManager.spells.heal.enabled) availableSpells.push('<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock(\'heal\'); else console.log(\'window.game or spellManager undefined on heal unlock\');">Heal (20 Mana, +30 HP) - Replaces Lesser Heal</button>');
-          if (!this.spellManager.spells.renew.enabled) availableSpells.push('<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock(\'renew\'); else console.log(\'window.game or spellManager undefined on renew unlock\');">Renew (25 Mana, +50 HP over 10s)</button>');
-          if (!this.spellManager.spells.greaterHeal.enabled && this.spellManager.spells.heal.enabled) availableSpells.push('<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock(\'greaterHeal\'); else console.log(\'window.game or spellManager undefined on greaterHeal unlock\');">Greater Heal (30 Mana, +50 HP) - Replaces Heal</button>');
-          if (!this.spellManager.spells.chainHeal.enabled) availableSpells.push('<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock(\'chainHeal\'); else console.log(\'window.game or spellManager undefined on chainHeal unlock\');">Chain Heal (35 Mana, +30 HP + 15 HP x2)</button>');
-          if (!this.spellManager.spells.shield.enabled) availableSpells.push('<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock(\'shield\'); else console.log(\'window.game or spellManager undefined on shield unlock\');">Shield (20 Mana, 30 HP absorb)</button>');
+          if (!this.spellManager.spells.flashHeal.enabled) {
+            const desc = this.getSpellDescription("flashHeal");
+            availableSpells.push(`<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock('flashHeal'); else console.log('window.game or spellManager undefined');">${desc}</button>`);
+          }
+          if (!this.spellManager.spells.heal.enabled) {
+            const desc = this.getSpellDescription("heal");
+            availableSpells.push(`<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock('heal'); else console.log('window.game or spellManager undefined');">${desc}</button>`);
+          }
+          if (!this.spellManager.spells.renew.enabled) {
+            const desc = this.getSpellDescription("renew");
+            availableSpells.push(`<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock('renew'); else console.log('window.game or spellManager undefined');">${desc}</button>`);
+          }
+          if (!this.spellManager.spells.greaterHeal.enabled && this.spellManager.spells.heal.enabled) {
+            const desc = this.getSpellDescription("greaterHeal");
+            availableSpells.push(`<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock('greaterHeal'); else console.log('window.game or spellManager undefined');">${desc}</button>`);
+          }
+          if (!this.spellManager.spells.chainHeal.enabled) {
+            const desc = this.getSpellDescription("chainHeal");
+            availableSpells.push(`<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock('chainHeal'); else console.log('window.game or spellManager undefined');">${desc}</button>`);
+          }
+          if (!this.spellManager.spells.shield.enabled) {
+            const desc = this.getSpellDescription("shield");
+            availableSpells.push(`<button onclick="if (window.game && window.game.spellManager) window.game.spellManager.unlock('shield'); else console.log('window.game or spellManager undefined');">${desc}</button>`);
+          }
         }
         talents.innerHTML = availableSpells.length > 0
           ? `<p>Choose a new spell:</p>${availableSpells.join(" ")}`
-          : `<p>Round ${this.game.state.round} Complete! Continue to the next challenge?</p><button onclick="if (window.game) window.game.nextRound(); else console.log('window.game undefined on next round click');">Next Round</button>`;
+          : `<p>Round ${this.game.state.round} Complete! Continue to the next challenge?</p><button onclick="if (window.game) window.game.nextRound(); else console.log('window.game undefined');">Next Round</button>`;
       } else if (this.game.state.inRound) {
         talents.innerHTML = "";
       } else {
-        talents.innerHTML = `<p>Game Over! You reached Round ${this.game.state.round}.</p><button onclick="if (window.game) window.game.reset(); else console.log('window.game undefined on play again click');">Play Again</button>`;
+        talents.innerHTML = `<p>Game Over! You reached Round ${this.game.state.round}.</p><button onclick="if (window.game) window.game.reset(); else console.log('window.game undefined');">Play Again</button>`;
       }
     }
 
     const spellBar = document.getElementById("spellBar");
     if (spellBar && this.game.state.inRound) {
-      const spellIcons = [
-        { type: "lesserHeal", src: "assets/images/icons/lesserheal.png", enabled: this.spellManager.spells.lesserHeal.enabled, manaCost: 10, castTime: 2, healAmount: 20, binding: "Left-click" }
-      ];
-      if (this.spellManager.spells.flashHeal.enabled) spellIcons.push({ type: "flashHeal", src: "assets/images/icons/flashheal.png", enabled: true, manaCost: 15, castTime: 1, healAmount: 40, binding: "Right-click" });
-      if (this.spellManager.spells.heal.enabled) spellIcons[0] = { type: "heal", src: "assets/images/icons/lesserheal.png", enabled: true, manaCost: 20, castTime: 2.5, healAmount: 30, binding: "Left-click" };
-      if (this.spellManager.spells.greaterHeal.enabled) spellIcons[0] = { type: "greaterHeal", src: "assets/images/icons/lesserheal.png", enabled: true, manaCost: 30, castTime: 3, healAmount: 50, binding: "Left-click" };
-      if (this.spellManager.spells.renew.enabled) spellIcons.push({ type: "renew", src: "assets/images/icons/renew.png", enabled: true, manaCost: 25, duration: 10, healAmount: 50, binding: "Shift + Left-click" });
-      if (this.spellManager.spells.chainHeal.enabled) spellIcons.push({ type: "chainHeal", src: "assets/images/icons/chainheal.png", enabled: true, manaCost: 35, castTime: 2, healAmount: 30, secondaryHeal: 15, binding: "Ctrl + Left-click" });
+      let primaryHealType;
+      if (this.spellManager.spells.greaterHeal.enabled) {
+        primaryHealType = "greaterHeal";
+      } else if (this.spellManager.spells.heal.enabled) {
+        primaryHealType = "heal";
+      } else {
+        primaryHealType = "lesserHeal";
+      }
+
+      const spellTypesToDisplay = [primaryHealType];
+      if (this.spellManager.spells.flashHeal.enabled) spellTypesToDisplay.push("flashHeal");
+      if (this.spellManager.spells.renew.enabled) spellTypesToDisplay.push("renew");
+      if (this.spellManager.spells.chainHeal.enabled) spellTypesToDisplay.push("chainHeal");
+      if (this.spellManager.spells.shield.enabled) spellTypesToDisplay.push("shield");
+
+      const spellIcons = spellTypesToDisplay.map(spellType => {
+        const spell = this.spellManager.spells[spellType];
+        return {
+          ...spell,
+          src: this.spellIconsMap[spellType].src,
+          binding: this.spellIconsMap[spellType].binding,
+          displayName: this.spellIconsMap[spellType].displayName
+        };
+      });
 
       let spellBarHTML = "";
       spellIcons.forEach((spell) => {
         const canCast = spell.enabled && !this.spellManager.casting && this.game.state.mana >= spell.manaCost;
         const iconClass = canCast ? "spell-icon" : "spell-icon uncastable";
-        const tooltipText = `
-          <div class="tooltip-content" style="width: 150px;">
-            <strong>${spell.type.charAt(0).toUpperCase() + spell.type.slice(1)}:</strong><br>
-            ${spell.healAmount ? `Heals: ${spell.healAmount} HP` : ""}${spell.secondaryHeal ? ` (+${spell.secondaryHeal} HP to adjacent)` : ""}<br>
-            Mana Cost: ${spell.manaCost}${spell.castTime ? `<br>Cast Time: ${spell.castTime}s` : ""}${spell.duration ? `<br>Duration: ${spell.duration}s` : ""}<br>
-            Binding: ${spell.binding}${!canCast ? `<br><span style="color: red;">${this.spellManager.casting ? "Casting in progress" : "Not enough mana"}</span>` : ""}
-          </div>
-        `;
+        const tooltipText = this.generateTooltipText(spell);
         spellBarHTML += `
           <div class="spell-slot" onmouseover="this.querySelector('.tooltip').style.display='block'" onmouseout="this.querySelector('.tooltip').style.display='none'">
-            <img src="${spell.src}" class="${iconClass}" alt="${spell.type}">
+            <img src="${spell.src}" class="${iconClass}" alt="${spell.name}">
             <div class="tooltip">${tooltipText}</div>
             <span class="mana-cost">${spell.manaCost}</span>
           </div>
