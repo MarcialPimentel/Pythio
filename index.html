@@ -164,21 +164,22 @@
       padding: 2px 4px;
       border-radius: 3px;
     }
-    .tooltip {
-      display: none;
-      position: absolute;
-      bottom: 60px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(245, 232, 199, 0.9);
-      border: 1px solid #3c2f2f;
-      padding: 5px 10px;
-      font-size: 14px;
-      z-index: 10;
-      max-width: 200px;
-      text-align: left;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-    }
+  .tooltip {
+    display: none;
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(245, 232, 199, 0.9);
+    border: 1px solid #3c2f2f;
+    padding: 5px 10px;
+    font-size: 14px;
+    z-index: 10;
+    max-width: 300px; /* Increase max-width */
+    text-align: left;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    white-space: nowrap; /* Prevent excessive wrapping */
+  }
     #startScreen { 
       position: absolute; 
       top: 0; 
@@ -221,6 +222,22 @@
       display: none; 
       z-index: 20;
     }
+
+  .spell-slot-selection {
+    width: 80px; /* Increase size */
+    height: 80px;
+    margin: 10px; /* Add spacing */
+  }
+  .spell-slot-selection img.spell-icon {
+    width: 100%;
+    height: 100%;
+  }
+  .spell-slot-selection button {
+    margin-top: 5px;
+    width: 100%;
+    font-size: 14px;
+  }
+
   </style>
 </head>
 <body>
@@ -243,11 +260,12 @@
         <div class="cast-text" id="castText"></div>
       </div>
     </div>
-    <div id="manaBar">
-      <div class="mana-bar">
-        <div class="mana-fill" id="manaFill" style="width: 100%;"></div>
-        <div class="mana-text" id="manaText">100/100</div>
-      </div>
+<div id="manaBar">
+  <div class="mana-bar">
+    <div class="mana-fill" id="manaFill" style="width: 100%;"></div>
+    <div class="mana-text" id="manaText"></div> <!-- Remove hardcoded 100/100 -->
+  </div>
+</div>
     </div>
     <div id="eventMessage"></div>
     <div id="spellBar" class="spell-bar"></div>
