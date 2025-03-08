@@ -1,14 +1,31 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pythio</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <script src="js/game.js" defer onload="console.log('game.js loaded successfully with version 1.9')"></script>
   <style>
-    #startScreen { display: flex; flex-direction: column; align-items: center; }
-    #gameContent { display: none; }
+    #startScreen { 
+      position: absolute; 
+      top: 0; 
+      left: 0; 
+      width: 100%; 
+      height: 100%; 
+      background: #f5e8c7; 
+      display: flex; 
+      flex-direction: column; 
+      justify-content: center; 
+      align-items: center; 
+      z-index: 10;
+    }
+    #gameContent { 
+      display: none; 
+      z-index: 1;
+    }
     body { 
       font-family: Arial, sans-serif; 
       text-align: center; 
@@ -90,41 +107,61 @@
       line-height: 20px; 
     }
     .health-bar {
+      position: relative;
+      display: inline-block;
       width: 250px;
       height: 50px;
-      background: #ccc;
-      margin: 15px;
+      margin: 15px; /* Ensures proper spacing between health bars */
+      background: transparent; /* Removes unwanted gray background */
       border: 1px solid #000;
-      position: relative;
       cursor: pointer;
-      overflow: hidden;
+      overflow: hidden; /* Prevents health fill from overflowing */
+      box-sizing: border-box;
+    }
+    .armor-icon {
+      position: absolute;
+      top: 50%;
+      left: 5px;
+      width: 40px; /* Sized to fit within health bar */
+      height: 40px;
+      transform: translateY(-50%);
+      z-index: 1;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    .fill-container {
+      position: absolute;
+      left: 50px; /* Starts after the icon */
+      right: 0;
+      top: 0;
+      bottom: 0;
     }
     .health-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
       height: 100%;
       background: #4CAF50;
       width: 0%;
       transition: width 0.1s linear;
+    }
+    .shield-fill {
       position: absolute;
       left: 0;
       top: 0;
-    }
-    .shield-fill {
       height: 100%;
       background: #666;
       width: 0%;
       transition: width 0.1s linear;
-      position: absolute;
-      top: 0;
-      left: 0;
       opacity: 0.8;
     }
-    .health-text { 
-      position: absolute; 
-      width: 100%; 
-      text-align: center; 
-      font-size: 18px; 
-      line-height: 50px; 
-      z-index: 1;
+    .health-text {
+      position: absolute;
+      left: 50px; /* Aligns with fill area */
+      width: calc(100% - 50px);
+      text-align: center;
+      font-size: 18px;
+      line-height: 50px;
+      z-index: 2;
     }
     #eventMessage { 
       font-size: 18px; 
@@ -164,43 +201,49 @@
       padding: 2px 4px;
       border-radius: 3px;
     }
-.tooltip {
-  display: none;
-  position: absolute;
-  bottom: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #333; /* Dark gray background */
-  color: #fff; /* White text for contrast */
-  border: 1px solid #3c2f2f;
-  padding: 8px 12px; /* Slightly more padding for readability */
-  font-size: 14px;
-  border-radius: 4px;
-  z-index: 1000;
-  max-width: 250px; /* Reduced width for compact size */
-  min-width: 150px; /* Ensure it doesn't shrink too much */
-  text-align: left;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-  white-space: normal; /* Allow text to wrap */
-  overflow-wrap: break-word; /* Break long words if needed */
-  line-height: 1.4; /* Improve readability with line spacing */
-}
-    #startScreen { 
-      position: absolute; 
-      top: 0; 
-      left: 0; 
-      width: 100%; 
-      height: 100%; 
-      background: #f5e8c7; 
-      display: flex; 
-      flex-direction: column; 
-      justify-content: center; 
-      align-items: center; 
-      z-index: 10;
+    .tooltip {
+      display: none;
+      position: absolute;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #333;
+      color: #fff;
+      border: 1px solid #3c2f2f;
+      padding: 8px 12px;
+      font-size: 14px;
+      border-radius: 4px;
+      z-index: 1000;
+      max-width: 250px;
+      min-width: 150px;
+      text-align: left;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      white-space: normal;
+      overflow-wrap: break-word;
+      line-height: 1.4;
     }
-    #gameContent { 
-      display: none; 
-      z-index: 1;
+    .spell-slot-selection {
+      width: 80px;
+      height: 80px;
+      margin: 10px;
+    }
+    .spell-slot-selection img.spell-icon {
+      width: 100%;
+      height: 100%;
+    }
+    .spell-slot-selection button {
+      margin-top: 5px;
+      width: 100%;
+      font-size: 14px;
+    }
+    .high-damage {
+      border: 2px solid red;
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0% { border-color: red; }
+      50% { border-color: darkred; }
+      100% { border-color: red; }
     }
     #leaderboard { 
       margin: 20px; 
@@ -227,22 +270,6 @@
       display: none; 
       z-index: 20;
     }
-
-  .spell-slot-selection {
-    width: 80px; /* Increase size */
-    height: 80px;
-    margin: 10px; /* Add spacing */
-  }
-  .spell-slot-selection img.spell-icon {
-    width: 100%;
-    height: 100%;
-  }
-  .spell-slot-selection button {
-    margin-top: 5px;
-    width: 100%;
-    font-size: 14px;
-  }
-
   </style>
 </head>
 <body>
@@ -258,27 +285,52 @@
   <div id="gameContent">
     <h1>Pythio</h1>
     <div id="status">Round 1 - Time: 10s</div>
-    <div id="healthBars"></div>
+    <div id="healthBars">
+      <!-- Health bars will be dynamically added by game.js -->
+      <div class="health-bar">
+        <img class="armor-icon" src="path/to/armor-icon.png" alt="Armor">
+        <div class="fill-container">
+          <div class="health-fill"></div>
+          <div class="shield-fill"></div>
+        </div>
+        <div class="health-text">100 / 100</div>
+      </div>
+    </div>
     <div id="castBarContainer">
       <div id="castBar">
         <div class="cast-fill" id="castFill"></div>
         <div class="cast-text" id="castText"></div>
       </div>
     </div>
-<div id="manaBar">
-  <div class="mana-bar">
-    <div class="mana-fill" id="manaFill" style="width: 100%;"></div>
-    <div class="mana-text" id="manaText"></div> <!-- Remove hardcoded 100/100 -->
-  </div>
-</div>
+    <div id="manaBar">
+      <div class="mana-bar">
+        <div class="mana-fill" id="manaFill"></div>
+        <div class="mana-text" id="manaText"></div>
+      </div>
     </div>
     <div id="eventMessage"></div>
-    <div id="spellBar" class="spell-bar"></div>
+    <div id="spellBar" class="spell-bar">
+      <!-- Spell slots will be dynamically added by game.js -->
+      <div class="spell-slot">
+        <img class="spell-icon" src="path/to/spell-icon.png" alt="Spell">
+        <div class="mana-cost">10</div>
+      </div>
+    </div>
     <div id="talents"></div>
   </div>
-<div id="debugPanel">
-  <button onclick="if (window.game) window.addMana(50); else console.log('window.game undefined on +50 Mana click');">+50 Mana</button>
-  <button onclick="if (window.game) window.skipRound(); else console.log('window.game undefined on Skip Round click');">Skip Round</button>
-</div>
+  <div id="debugPanel">
+    <button onclick="if (window.game) window.addMana(50); else console.log('window.game undefined on +50 Mana click');">+50 Mana</button>
+    <button onclick="if (window.game) window.skipRound(); else console.log('window.game undefined on Skip Round click');">Skip Round</button>
+  </div>
+
+  <!-- Event listener for F1 to toggle debug panel -->
+  <script>
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'F1') {
+        const debugPanel = document.getElementById('debugPanel');
+        debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
+      }
+    });
+  </script>
 </body>
 </html>
