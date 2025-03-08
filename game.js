@@ -102,11 +102,10 @@ nextRound() {
     this.state.updateInterval = setInterval(() => this.update(), 100);
   }
   this.targetManager.generateTargets();
-  this.setObjective();
   this.uiManager.update();
 }
 
- update() {
+update() {
   if (!this.state.gameStarted || this.state.gameEnded || !this.state.inRound) return;
 
   const now = Date.now();
@@ -130,6 +129,7 @@ nextRound() {
     this.manaManager.setEndOfRoundMana();
     this.state.inRound = false;
     this.state.postRound = true;
+    this.spellManager.stopCasting(); // Stop any active casts
     if (this.state.updateInterval) {
       clearInterval(this.state.updateInterval);
       this.state.updateInterval = null;
@@ -414,7 +414,7 @@ class SpellManager {
 class TargetManager {
   constructor(game) {
     this.game = game;
-    this.targets = [{ health: 75, maxHealth: 100, damageRate: 2, renewTime: 0, shield: 0, shieldTime: 0 }];
+    this.targets = []; // Initialize empty; we'll populate in generateTargets
     this.modifiers = {
       highDamage: {
         message: "High Damage Round!",
@@ -442,6 +442,31 @@ class TargetManager {
         }
       }
     };
+    
+    // Define armor types with their properties
+    this.armorTypes = {
+      heavy: {
+        maxHealth: 150,
+        damagePattern: "bigHit"
+      },
+      medium: {
+        maxHealth: 100,
+        damagePattern: ["snipe", "sustained"]
+      },
+      light: {
+        maxHealth: 80,
+        damagePattern: ["dot", "escalatingDot"]
+      }
+    };
+
+    // Define damage patterns with their behavior
+    this.damagePatterns = {
+      bigHit: { type: "burst", amount: 20, interval: 3, warning: 2 },
+      snipe: { type: "burst", amount: 10, interval: 4 },
+      sustained: { type: "sustained", rate: 4 },
+      dot: { type: "dot", rate: 3, duration: 5 },
+      escalatingDot: { type: "escalatingDot", initialRate: 2, escalation: 1, duration: 9 }
+    };
   }
 
   reset() {
@@ -449,84 +474,130 @@ class TargetManager {
   }
 
   generateTargets() {
-    this.targets = [];
+    this.targets = []; // Clear existing targets
     const round = this.game.state.round;
 
+    // Step 1: Add one Heavy armor target
+    const heavyArmor = this.armorTypes.heavy;
+    const heavyDamagePattern = heavyArmor.damagePattern; // "bigHit"
+    const heavyPattern = this.damagePatterns[heavyDamagePattern];
+    
+    // Validate heavyPattern to prevent undefined issues
+    if (!heavyPattern) {
+      console.error(`Invalid damage pattern for heavy armor: ${heavyDamagePattern}`);
+      return; // Exit early to avoid pushing invalid targets
+    }
+
+    const heavyTarget = {
+      health: heavyArmor.maxHealth || 100, // Fallback to prevent NaN
+      maxHealth: heavyArmor.maxHealth || 100,
+      armor: "heavy",
+      damagePattern: heavyDamagePattern,
+      nextTick: heavyPattern.type === "burst" ? (heavyPattern.interval || 0) : 0,
+      warningActive: false,
+      dotTimeRemaining: 
+        heavyPattern.type === "dot" || heavyPattern.type === "escalatingDot" 
+          ? (heavyPattern.duration || 0) 
+          : 0,
+      renewTime: 0,
+      shield: 0,
+      shieldTime: 0
+    };
+    this.targets.push(heavyTarget);
+
+    // Step 2: Determine number of additional targets (Medium or Light)
+    let additionalTargets;
     if (round === 1) {
-      this.targets = [{ health: 60, maxHealth: 100, damageRate: 4, renewTime: 0, shield: 0, shieldTime: 0 }];
-      this.game.state.roundTime = 10;
+      additionalTargets = 1; // 1 Heavy + 1 additional
     } else if (round === 2) {
-      this.targets = [
-        { health: 80, maxHealth: 100, damageRate: 2, renewTime: 0, shield: 0, shieldTime: 0 },
-        { health: 80, maxHealth: 100, damageRate: 2, renewTime: 0, shield: 0, shieldTime: 0 }
-      ];
-    } else if (round === 3) {
-      this.targets = [
-        { health: 90, maxHealth: 100, damageRate: 2, renewTime: 0, shield: 0, shieldTime: 0 },
-        { health: 90, maxHealth: 100, damageRate: 2, renewTime: 0, shield: 0, shieldTime: 0 },
-        { health: 90, maxHealth: 100, damageRate: 3, renewTime: 0, shield: 0, shieldTime: 0 }
-      ];
-    } else if (round === 4) {
-      this.targets = [
-        { health: 95, maxHealth: 100, damageRate: 2.5, renewTime: 0, shield: 0, shieldTime: 0 },
-        { health: 95, maxHealth: 100, damageRate: 2.5, renewTime: 0, shield: 0, shieldTime: 0 },
-        { health: 95, maxHealth: 100, damageRate: 2.5, renewTime: 0, shield: 0, shieldTime: 0 },
-        { health: 95, maxHealth: 100, damageRate: 2.5, renewTime: 0, shield: 0, shieldTime: 0 }
-      ];
-    } else if (round === 5) {
-      this.targets = [
-        { health: 30, maxHealth: 100, damageRate: 4, renewTime: 0, shield: 0, shieldTime: 0 },
-        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0, shield: 0, shieldTime: 0 },
-        { health: 50, maxHealth: 100, damageRate: 2, renewTime: 0, shield: 0, shieldTime: 0 }
-      ];
+      additionalTargets = 2; // 1 Heavy + 2 additional
     } else {
-      const roundsPastFive = round - 5;
-      const baseNumTargets = 3 + Math.floor(roundsPastFive / (round <= 9 ? 3 : 5));
-      const variance = round <= 9 ? Math.floor(Math.random() * 5) - 2 : Math.floor(Math.random() * 3) - 1;
-      const numTargets = Math.min(7, Math.max(3, baseNumTargets + variance));
+      additionalTargets = Math.min(6, round - 1); // Caps at 6 additional
+    }
 
-      const tankDamageRate = 4 + 0.5 * roundsPastFive;
-      const dpsDamageRate = 2 + 0.3 * roundsPastFive;
-      const healerDamageRate = 1 + 0.2 * roundsPastFive;
-      const baseHealth = Math.max(30, 100 - 2 * roundsPastFive);
-
-      let appliedModifier = false;
-      if (Math.random() < 0.5) {
-        const availableModifiers = Object.keys(this.modifiers);
-        const selectedKey = availableModifiers[Math.floor(Math.random() * availableModifiers.length)];
-        const modifier = this.modifiers[selectedKey];
-        console.log(`Applying Modifier: ${modifier.message}`);
-        this.game.uiManager.setModifierMessage(modifier.message, 5);
-        modifier.applyEffect(this.targets);
-        appliedModifier = true;
+    // Step 3: Add additional targets
+    for (let i = 0; i < additionalTargets; i++) {
+      const armor = Math.random() < 0.5 ? "medium" : "light";
+      const armorType = this.armorTypes[armor];
+      
+      // Validate armorType
+      if (!armorType) {
+        console.error(`Invalid armor type: ${armor}`);
+        continue; // Skip this iteration
       }
 
-      let addedExtraTank = false;
-      for (let i = 0; i < numTargets; i++) {
-        let damageRate = i === 0 ? tankDamageRate : dpsDamageRate;
-        if (!addedExtraTank && appliedModifier && this.game.uiManager.modifierMessage.includes("Extra Tank")) {
-          damageRate = tankDamageRate;
-          addedExtraTank = true;
-        }
-        if (round >= 10 && i === numTargets - 1) damageRate = healerDamageRate;
+      const damagePatternOptions = Array.isArray(armorType.damagePattern)
+        ? armorType.damagePattern
+        : [armorType.damagePattern];
+      const damagePattern = damagePatternOptions[Math.floor(Math.random() * damagePatternOptions.length)];
+      const pattern = this.damagePatterns[damagePattern];
 
-        let health = baseHealth;
-        if (round <= 9) {
-          const healthVariance = (Math.random() * 0.2 - 0.1) * health;
-          health = Math.max(30, Math.min(100, health + healthVariance));
-        }
-        if (appliedModifier && this.game.uiManager.modifierMessage.includes("Critical Condition")) {
-          health = 10;
-        }
-
-        this.targets.push({ health, maxHealth: 100, damageRate, renewTime: 0, shield: 0, shieldTime: 0 });
+      // Validate pattern
+      if (!pattern) {
+        console.error(`Invalid damage pattern for ${armor} armor: ${damagePattern}`);
+        continue; // Skip this iteration
       }
+
+      const target = {
+        health: armorType.maxHealth || 50, // Fallback to prevent NaN
+        maxHealth: armorType.maxHealth || 50,
+        armor: armor,
+        damagePattern: damagePattern,
+        nextTick: pattern.type === "burst" ? (pattern.interval || 0) : 0,
+        warningActive: false,
+        dotTimeRemaining: 
+          pattern.type === "dot" || pattern.type === "escalatingDot" 
+            ? (pattern.duration || 0) 
+            : 0,
+        renewTime: 0,
+        shield: 0,
+        shieldTime: 0
+      };
+      console.log(`Creating target - Armor: ${armor}, Health: ${target.health}, Damage Pattern: ${damagePattern}`);
+      this.targets.push(target);
     }
   }
 
   updateTargets(timePassed) {
     this.targets.forEach((target, i) => {
-      let damage = target.damageRate * timePassed;
+      const pattern = this.damagePatterns[target.damagePattern];
+      if (!pattern) {
+        console.error(`Invalid damage pattern for target ${i}: ${target.damagePattern}`);
+        return; // Skip this target
+      }
+      let damage = 0;
+
+      // Apply damage based on pattern type
+      if (pattern.type === "burst") {
+        target.nextTick -= timePassed;
+        if (target.nextTick <= pattern.warning) {
+          target.warningActive = true; // Show warning before burst
+        }
+        if (target.nextTick <= 0) {
+          damage = pattern.amount;
+          target.nextTick += pattern.interval; // Reset timer
+          target.warningActive = false;
+        }
+      } else if (pattern.type === "sustained") {
+        damage = pattern.rate * timePassed; // Continuous damage
+      } else if (pattern.type === "dot" && target.dotTimeRemaining > 0) {
+        damage = pattern.rate * timePassed;
+        target.dotTimeRemaining -= timePassed;
+        if (target.dotTimeRemaining <= 0) {
+          target.dotTimeRemaining = 0; // Stop DoT when duration ends
+        }
+      } else if (pattern.type === "escalatingDot" && target.dotTimeRemaining > 0) {
+        const timeElapsed = pattern.duration - target.dotTimeRemaining;
+        const escalations = Math.floor(timeElapsed / 3); // Increase every 3s
+        const currentRate = pattern.initialRate + pattern.escalation * escalations;
+        damage = currentRate * timePassed;
+        target.dotTimeRemaining -= timePassed;
+        if (target.dotTimeRemaining <= 0) {
+          target.dotTimeRemaining = 0;
+        }
+      }
+
+      // Apply damage to shield first, then health
       if (target.shield > 0) {
         const absorbed = Math.min(damage, target.shield);
         target.shield -= absorbed;
@@ -535,22 +606,15 @@ class TargetManager {
         if (target.shieldTime <= 0) target.shield = 0;
       }
       target.health = Math.max(0, target.health - damage);
+
+      // Handle renew healing
       if (target.renewTime > 0) {
-        const healPerTick = this.game.spellManager.spells.renew.healAmount / this.game.spellManager.spells.renew.duration;
+        const healPerTick =
+          this.game.spellManager.spells.renew.healAmount /
+          this.game.spellManager.spells.renew.duration;
         const healing = healPerTick * timePassed;
         target.health = Math.min(target.maxHealth, target.health + healing);
         target.renewTime = Math.max(0, target.renewTime - timePassed);
-        if (healing > 0) {
-          target.lastHealing = healing;
-          console.log(`Renew healing target ${i}: +${Math.floor(healing)} HP, new health: ${Math.floor(target.health)}`);
-        }
-      } else {
-        target.lastHealing = 0;
-      }
-      if (this.game.state.round >= 10 && i === this.targets.length - 1) {
-        for (let j = 0; j < this.targets.length - 1; j++) {
-          this.targets[j].health = Math.min(this.targets[j].maxHealth, this.targets[j].health + 1 * timePassed);
-        }
       }
     });
   }
@@ -559,8 +623,8 @@ class TargetManager {
     return this.targets.some(t => t.health <= 0);
   }
 }
-
-class UIManager {
+    
+    class UIManager {
   constructor(game, spellManager, targetManager, manaManager) {
     this.game = game;
     this.spellManager = spellManager;
@@ -569,20 +633,20 @@ class UIManager {
     this.modifierMessage = "";
     this.modifierMessageTimer = 0;
     this.debouncedUpdate = this.debounce(this.update.bind(this), 50);
-    this.checkDOMElements();
+
+    // Define spellIconsMap inside the constructor
+    this.spellIconsMap = {
+      lesserHeal: { src: "assets/images/icons/lesserheal.png", binding: "Left-click", displayName: "Lesser Heal" },
+      heal: { src: "assets/images/icons/lesserheal.png", binding: "Left-click", displayName: "Heal" },
+      greaterHeal: { src: "assets/images/icons/lesserheal.png", binding: "Left-click", displayName: "Greater Heal" },
+      flashHeal: { src: "assets/images/icons/flashheal.png", binding: "Right-click", displayName: "Flash Heal" },
+      renew: { src: "assets/images/icons/renew.png", binding: "Shift + Left-click", displayName: "Renew" },
+      chainHeal: { src: "assets/images/icons/chainheal.png", binding: "Ctrl + Left-click", displayName: "Chain Heal" },
+      shield: { src: "assets/images/icons/shield.png", binding: "Alt + Left-click", displayName: "Shield" }
+    };
+
+    this.checkDOMElements();    
   }
-
-  // UI-specific data for spells (icons, bindings, display names)
-  spellIconsMap = {
-    lesserHeal: { src: "assets/images/icons/lesserheal.png", binding: "Left-click", displayName: "Lesser Heal" },
-    heal: { src: "assets/images/icons/lesserheal.png", binding: "Left-click", displayName: "Heal" },
-    greaterHeal: { src: "assets/images/icons/lesserheal.png", binding: "Left-click", displayName: "Greater Heal" },
-    flashHeal: { src: "assets/images/icons/flashheal.png", binding: "Right-click", displayName: "Flash Heal" },
-    renew: { src: "assets/images/icons/renew.png", binding: "Shift + Left-click", displayName: "Renew" },
-    chainHeal: { src: "assets/images/icons/chainheal.png", binding: "Ctrl + Left-click", displayName: "Chain Heal" },
-    shield: { src: "assets/images/icons/shield.png", binding: "Alt + Left-click", displayName: "Shield" }
-  };
-
   checkDOMElements() {
     const requiredElements = ["status", "manaFill", "manaText", "castBar", "castFill", "castText", "eventMessage", "healthBars", "talents", "spellBar"];
     requiredElements.forEach(id => {
@@ -640,7 +704,7 @@ update() {
   const status = document.getElementById("status");
   if (status) {
     status.innerHTML = this.game.state.inRound
-      ? `Round ${this.game.state.round} - Time: ${Math.ceil(this.game.state.roundTime)}s${this.game.objective ? ` - ${this.game.objective.description}` : ""}`
+      ? `Round ${this.game.state.round} - Time: ${Math.ceil(this.game.state.roundTime)}s`
       : `Round ${this.game.state.round} Complete!`;
   }
 
@@ -668,11 +732,11 @@ if (manaFill && manaText) {
 }
 
 
-  const castBar = document.getElementById("castBar");
+const castBar = document.getElementById("castBar");
   const castFill = document.getElementById("castFill");
   const castText = document.getElementById("castText");
   if (castBar && castFill && castText) {
-    if (this.spellManager.casting) {
+    if (this.game.state.inRound && this.spellManager.casting) { // Only show if in round and casting
       castBar.style.display = "block";
       const progressPercent = (this.spellManager.castProgress / this.spellManager.castDuration) * 100;
       castFill.style.width = `${progressPercent}%`;
@@ -684,6 +748,7 @@ if (manaFill && manaText) {
       castBar.style.display = "none";
     }
   }
+
 
   const eventMessageDiv = document.getElementById("eventMessage");
   if (eventMessageDiv) {
