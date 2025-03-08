@@ -164,22 +164,27 @@
       padding: 2px 4px;
       border-radius: 3px;
     }
-  .tooltip {
-    display: none;
-    position: absolute;
-    bottom: 60px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(245, 232, 199, 0.9);
-    border: 1px solid #3c2f2f;
-    padding: 5px 10px;
-    font-size: 14px;
-    z-index: 10;
-    max-width: 300px; /* Increase max-width */
-    text-align: left;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-    white-space: nowrap; /* Prevent excessive wrapping */
-  }
+.tooltip {
+  display: none;
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333; /* Dark gray background */
+  color: #fff; /* White text for contrast */
+  border: 1px solid #3c2f2f;
+  padding: 8px 12px; /* Slightly more padding for readability */
+  font-size: 14px;
+  border-radius: 4px;
+  z-index: 1000;
+  max-width: 250px; /* Reduced width for compact size */
+  min-width: 150px; /* Ensure it doesn't shrink too much */
+  text-align: left;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  white-space: normal; /* Allow text to wrap */
+  overflow-wrap: break-word; /* Break long words if needed */
+  line-height: 1.4; /* Improve readability with line spacing */
+}
     #startScreen { 
       position: absolute; 
       top: 0; 
