@@ -5,8 +5,10 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <script src="game.js" onload="console.log('game.js loaded successfully with version 1.9')"></script>
+  <script src="js/game.js" defer onload="console.log('game.js loaded successfully with version 1.9')"></script>
   <style>
+    #startScreen { display: flex; flex-direction: column; align-items: center; }
+    #gameContent { display: none; }
     body { 
       font-family: Arial, sans-serif; 
       text-align: center; 
@@ -31,7 +33,7 @@
     button:hover { 
       background: #e6b800; 
     }
-    #manaBar, #castBarContainer, #healthBars, #talents, #eventMessage { 
+    #manaBar, #castBarContainer, #healthBars, #spellBar, #talents, #eventMessage { 
       max-width: 1200px; 
       margin: 20px auto; 
       display: flex; 
@@ -108,13 +110,13 @@
     }
     .shield-fill {
       height: 100%;
-      background: #666; /* Darker grey for better contrast */
+      background: #666;
       width: 0%;
       transition: width 0.1s linear;
       position: absolute;
       top: 0;
-      left: 0; /* Adjusted dynamically in JS */
-      opacity: 0.8; /* Slightly transparent */
+      left: 0;
+      opacity: 0.8;
     }
     .health-text { 
       position: absolute; 
@@ -130,17 +132,53 @@
       margin: 10px auto; 
       min-height: 24px; 
     }
-    #instructions { 
-      position: fixed; 
-      bottom: 20px; 
-      left: 0; 
-      right: 0; 
-      max-width: 600px; 
-      margin: 0 auto; 
-      font-size: 16px; 
+    .spell-bar {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
     }
-    .spell-available { color: #3c2f2f; }
-    .spell-unavailable { color: #ff0000; }
+    .spell-slot {
+      position: relative;
+      width: 50px;
+      height: 50px;
+      background: #d9c2a3;
+      border: 2px solid #000;
+      cursor: default;
+    }
+    .spell-icon {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transition: filter 0.2s;
+    }
+    .uncastable {
+      filter: grayscale(80%) brightness(50%) sepia(40%);
+    }
+    .mana-cost {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      font-size: 12px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+    .tooltip {
+      display: none;
+      position: absolute;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(245, 232, 199, 0.9);
+      border: 1px solid #3c2f2f;
+      padding: 5px 10px;
+      font-size: 14px;
+      z-index: 10;
+      max-width: 200px;
+      text-align: left;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
     #startScreen { 
       position: absolute; 
       top: 0; 
@@ -189,7 +227,7 @@
   <div id="startScreen">
     <h1>Pythio</h1>
     <p>Heal adventurers through 5 rounds of combat!</p>
-    <button onclick="game.start()">Start Game</button>
+    <button id="startButton">Start Game</button>
     <div id="leaderboard">
       <h3>Leaderboard (Highest Round)</h3>
       <ul id="leaderboardList"></ul>
@@ -198,13 +236,7 @@
   <div id="gameContent">
     <h1>Pythio</h1>
     <div id="status">Round 1 - Time: 10s</div>
-    <div id="healthBars">
-      <div class="health-bar" onmousedown="game.spellManager.cast(event, 0)" oncontextmenu="return false;">
-        <div class="health-fill" id="healthFill0" style="width: 60%;"></div>
-        <div class="shield-fill" id="shieldFill0" style="width: 0%;"></div>
-        <div class="health-text" id="healthText0">60/100</div>
-      </div>
-    </div>
+    <div id="healthBars"></div>
     <div id="castBarContainer">
       <div id="castBar">
         <div class="cast-fill" id="castFill"></div>
@@ -218,14 +250,12 @@
       </div>
     </div>
     <div id="eventMessage"></div>
+    <div id="spellBar" class="spell-bar"></div>
     <div id="talents"></div>
-    <div id="instructions">
-      <p>Left-click: Lesser Heal (20 HP, 10 Mana, 2s)</p>
-    </div>
   </div>
-  <div id="debugPanel">
-    <button onclick="addMana(50)">+50 Mana</button>
-    <button onclick="skipRound()">Skip Round</button>
-  </div>
+<div id="debugPanel">
+  <button onclick="if (window.game) window.addMana(50); else console.log('window.game undefined on +50 Mana click');">+50 Mana</button>
+  <button onclick="if (window.game) window.skipRound(); else console.log('window.game undefined on Skip Round click');">Skip Round</button>
+</div>
 </body>
 </html>
