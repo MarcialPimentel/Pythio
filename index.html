@@ -288,7 +288,6 @@
     <div id="healthBars">
       <!-- Health bars will be dynamically added by game.js -->
       <div class="health-bar">
-        <img class="armor-icon" src="path/to/armor-icon.png" alt="Armor">
         <div class="fill-container">
           <div class="health-fill"></div>
           <div class="shield-fill"></div>
@@ -312,7 +311,6 @@
     <div id="spellBar" class="spell-bar">
       <!-- Spell slots will be dynamically added by game.js -->
       <div class="spell-slot">
-        <img class="spell-icon" src="path/to/spell-icon.png" alt="Spell">
         <div class="mana-cost">10</div>
       </div>
     </div>
@@ -323,14 +321,5 @@
     <button onclick="if (window.game) window.skipRound(); else console.log('window.game undefined on Skip Round click');">Skip Round</button>
   </div>
 
-  <!-- Event listener for F1 to toggle debug panel -->
-  <script>
-    document.addEventListener('keydown', function(event) {
-      if (event.key === 'F1') {
-        const debugPanel = document.getElementById('debugPanel');
-        debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
-      }
-    });
-  </script>
 </body>
 </html>
